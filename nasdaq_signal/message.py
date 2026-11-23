@@ -52,6 +52,11 @@ def _num(v, fmt: str) -> str:
     return "-" if _isnan(v) else format(v, fmt)
 
 
+def _cat(v) -> str:
+    """카테고리 점수: 반올림 결과가 0이면 '-0.0' 대신 '+0.0'."""
+    return "-" if _isnan(v) else format(0.0 if abs(v) < 0.05 else v, "+.1f")
+
+
 def _message_one(r: Report, threshold: float) -> str:
     day = f"{_md(r.run_date)}({WEEKDAYS[r.run_date.weekday()]})"
     tail = f"휴장, {_md(r.as_of)} 기준" if r.market_closed else f"{_md(r.as_of)} 마감"
@@ -85,7 +90,7 @@ def _message_two(r: Report) -> str:
     kv = r.key_values
     # (우선순위, 줄) — 숫자가 작을수록 중요. 200자 초과 시 큰 숫자부터 제거.
     lines: list[tuple[int, str]] = [
-        (1, " ".join(f"{ko} {_num(r.categories.get(c), '+.1f')}" for c, ko in CATEGORY_KO.items())),
+        (1, " ".join(f"{ko} {_cat(r.categories.get(c))}" for c, ko in CATEGORY_KO.items())),
     ]
     if r.reauth_days is not None and r.reauth_days <= 14:
         lines.append((2, f"⚠ 재인증 필요: D-{max(r.reauth_days, 0)}"))

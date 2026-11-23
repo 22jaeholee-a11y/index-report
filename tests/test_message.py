@@ -94,3 +94,8 @@ def test_nan_category_and_key_values_shown_as_dash():
                                     key_values={"vix": 14.2, "us10y": nan, "hy_spread": nan}))
     assert "매크로 -" in m2.splitlines()[0]
     assert "10년물 -" in m2
+
+
+def test_tiny_negative_category_shows_zero_without_sign_noise():
+    _, m2 = format_messages(_report(categories={**CATS, "sentiment": -0.04}))
+    assert "심리 +0.0" in m2.splitlines()[0]
