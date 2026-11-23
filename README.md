@@ -22,7 +22,8 @@ https://fred.stlouisfed.org/docs/api/api_key.html 에서 발급 → `.env` 의 `
 3. 카카오 로그인 → 활성화 ON, Redirect URI에 `http://localhost:5000/callback` 등록
 4. 동의항목 → **카카오톡 메시지 전송(talk_message)** 설정
 5. (보안 → Client Secret 을 켰다면 `.env` 의 `KAKAO_CLIENT_SECRET`)
-6. `.venv\Scripts\python -m nasdaq_signal.kakao_auth` 실행 → 안내에 따라 로그인 → 카톡에 "연결 완료" 수신
+6. `.venv\Scripts\python -m nasdaq_signal.kakao_auth` → 출력된 주소로 로그인 → 이동된 주소 전체를 복사해
+   `.venv\Scripts\python -m nasdaq_signal.kakao_auth "<주소>"` 실행 → 카톡에 "연결 완료" 수신
 
 리프레시 토큰은 약 2개월 유효하며 매일 실행 시 자동 갱신됩니다. 만료 14일 전부터 메시지에 재인증 경고가 붙습니다.
 

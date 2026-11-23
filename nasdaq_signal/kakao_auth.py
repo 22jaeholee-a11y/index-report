@@ -39,11 +39,9 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         url = AUTHORIZE_URL + "?" + urlencode({"client_id": key, "redirect_uri": redirect,
                                                "response_type": "code", "scope": "talk_message"})
-        print("1) 아래 주소를 브라우저에서 열고 카카오 로그인·동의하세요:
-")
+        print("1) 아래 주소를 브라우저에서 열고 카카오 로그인·동의하세요:\n")
         print(url)
-        print("
-2) 이동된 페이지(접속 오류가 나도 괜찮습니다)의 주소창 전체를 복사해 다시 실행하세요:")
+        print("\n2) 이동된 페이지(접속 오류가 나도 괜찮습니다)의 주소창 전체를 복사해 다시 실행하세요:")
         print('   python -m nasdaq_signal.kakao_auth "http://localhost:5000/callback?code=..."')
         return 0
 
