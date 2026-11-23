@@ -25,8 +25,8 @@ from .scoring import (Calibration, base_probabilities, load_score_distributions,
 
 log = logging.getLogger("nasdaq_signal")
 KST = timezone(timedelta(hours=9))  # 한국은 서머타임 없음
-ERROR_TEXT = "[나스닥 방향성] 오류: 핵심 데이터 수집 실패 — 로그 확인"
-UNEXPECTED_TEXT = "[나스닥 방향성] 오류: 실행 중 예외 발생 — 로그 확인"
+ERROR_TEXT = "[NASDAQ] 오류: 핵심 데이터 수집 실패 — 로그 확인"
+UNEXPECTED_TEXT = "[NASDAQ] 오류: 실행 중 예외 발생 — 로그 확인"
 HISTORY_YEARS = 7
 
 

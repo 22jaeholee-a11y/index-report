@@ -80,13 +80,13 @@ def test_append_history_upserts_same_date(tmp_path):
 def test_dry_run_sends_nothing(tmp_path, monkeypatch, capsys):
     rc, client = _run(tmp_path, monkeypatch, extra=["--dry-run"])
     assert rc == 0 and client.sent == []
-    assert "[나스닥 방향성]" in capsys.readouterr().out
+    assert "[NASDAQ]" in capsys.readouterr().out
 
 
 def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
     assert rc == 0 and _structure_ok(client.sent)
-    assert client.sent[0].startswith("[나스닥 방향성] 11/21(토) · 11/20 마감")
+    assert client.sent[0].startswith("[NASDAQ] 11/21(토) · 11/20 마감")
     assert len(client.sent) == 2   # 근거(단기적·중기적)는 웹에서만
     assert not any(m.startswith(("[단기적", "[중기적")) for m in client.sent)
 
@@ -176,7 +176,7 @@ def test_unpredicted_long_uses_base_rates_and_ignores_long_missing(tmp_path, mon
 
 def _structure_ok(sent):
     """카톡은 요약(나스닥 방향성) → 지표 2통, 모두 200자 이하."""
-    return (len(sent) == 2 and sent[0].startswith("[나스닥 방향성]") and sent[1].startswith("시장 ")
+    return (len(sent) == 2 and sent[0].startswith("[NASDAQ]") and sent[1].startswith("시장 ")
             and all(len(m) <= 200 for m in sent))
 
 

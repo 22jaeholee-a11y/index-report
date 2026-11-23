@@ -20,10 +20,10 @@ def _report(**kw):
 def test_message_one_layout():
     m1, _ = format_messages(_report())
     assert m1 == (
-        "[나스닥 방향성] 11/24(화) · 11/23 마감\n"
-        "단기 ▲ 상승 55 · 횡보 30 · 하락 15 (평소 대비 강함)\n"
-        "중기 ─ 상승 38 · 횡보 40 · 하락 22 (평소 대비 보통)\n"
-        "장기 ▲ 상승 62 · 횡보 23 · 하락 15 (평소 대비 강함)"
+        "[NASDAQ] 11/24(화) · 11/23 마감\n"
+        "단기 ▲ 상승 55 · 횡보 30 · 하락 15\n"
+        "중기 ─ 상승 38 · 횡보 40 · 하락 22\n"
+        "장기 ▲ 상승 62 · 횡보 23 · 하락 15"
     )
 
 
@@ -41,7 +41,7 @@ def test_negative_score_format():
 
 def test_closed_market_header():
     m1, _ = format_messages(_report(as_of=date(2026, 11, 20), run_date=date(2026, 11, 22), market_closed=True))
-    assert m1.splitlines()[0] == "[나스닥 방향성] 11/22(일) · 휴장, 11/20 기준"
+    assert m1.splitlines()[0] == "[NASDAQ] 11/22(일) · 휴장, 11/20 기준"
 
 
 def test_low_confidence_line():
@@ -116,7 +116,7 @@ def test_arrow_follows_most_likely_outcome_when_probabilities_exist():
     m1, _ = format_messages(_report(scores={"short": -40.0, "mid": 30.0, "long": 5.0},
                                     probs={"short": (55, 30, 15), "mid": (20, 30, 50), "long": (40, 40, 20)}))
     lines = m1.splitlines()
-    assert lines[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15 (평소 대비 약함)"
+    assert lines[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15"
     assert lines[2].startswith("중기 ▼ 상승 20")
     assert lines[3].startswith("장기 ─ ")   # 동률이면 횡보
     assert "-40" not in m1 and "+30" not in m1   # 화살표와 반대 부호로 보이는 숫자 없음
@@ -130,7 +130,7 @@ def test_arrow_uses_score_without_probabilities():
 
 def test_probability_words_are_spelled_out():
     m1, *_ = format_messages(_report())
-    assert m1.splitlines()[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15 (평소 대비 강함)"
+    assert m1.splitlines()[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15"
     assert "상55" not in m1 and "횡30" not in m1 and "하15" not in m1
 
 
@@ -188,8 +188,8 @@ def test_reason_line_has_no_extra_wording():
 def test_score_position_shown_as_historical_percentile():
     msgs = format_messages(_report(drivers=_drivers(), score_pct={"short": 0.89, "mid": 0.30, "long": 0.5}))
     lines = msgs[0].splitlines()
-    assert lines[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15 (상위 11%)"
-    assert lines[2].endswith("(하위 30%)")
+    assert lines[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15"   # 요약엔 (상위 n%) 없음
+    assert "하위" not in lines[2] and "상위" not in lines[2]
     assert msgs[1].splitlines()[0] == "[단기적] +32 (상위 11%)"
 
 

@@ -129,7 +129,7 @@ def _reason_messages(r: "Report", h: str, threshold: float) -> list[str]:
 def _message_one(r: Report, threshold: float) -> str:
     day = f"{_md(r.run_date)}({WEEKDAYS[r.run_date.weekday()]})"
     tail = f"휴장, {_md(r.as_of)} 기준" if r.market_closed else f"{_md(r.as_of)} 마감"
-    lines = [f"[나스닥 방향성] {day} · {tail}"]
+    lines = [f"[NASDAQ] {day} · {tail}"]
     for h, ko in HORIZON_KO.items():
         s = r.scores.get(h)
         p = r.probs.get(h)
@@ -143,9 +143,8 @@ def _message_one(r: Report, threshold: float) -> str:
             lines.append(f"{ko} 계산 불가")
             continue
         p = r.probs.get(h)
-        if p:  # 화살표는 확률을 따르므로 부호 있는 점수 대신 '평소 대비'를 말로 표시
-            line = (f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]}"
-                    f" ({_position(r, h, threshold)})")
+        if p:  # 화살표는 확률을 따름 (점수 위치는 웹에서)
+            line = f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]}"
         else:
             line = f"{ko} {arrow(s, threshold)} {_score(s)}"
         lines.append(line)

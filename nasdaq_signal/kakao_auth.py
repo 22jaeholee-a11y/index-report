@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     store = FileTokenStore(cfg["paths"]["tokens"])
     store.save(merge_token_response(None, body))
-    KakaoClient(key, store, secret).send_text("[나스닥 방향성] 카카오톡 연결 완료", cfg["kakao"]["link_url"])
+    KakaoClient(key, store, secret).send_text("[NASDAQ] 카카오톡 연결 완료", cfg["kakao"]["link_url"])
     print("연결 완료 — 카카오톡 '나와의 채팅'을 확인하세요.")
     return 0
 
