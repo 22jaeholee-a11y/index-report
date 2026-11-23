@@ -160,7 +160,9 @@ def _message_two(r: Report) -> str:
     kv = r.key_values
     # (우선순위, 줄) — 숫자가 작을수록 중요. 200자 초과 시 큰 숫자부터 제거.
     # 지표는 한 줄에 하나씩
-    lines: list[tuple[float, str]] = [(1, f"{ko} {_cat(r.categories.get(c))}") for c, ko in CATEGORY_KO.items()]
+    # 보고서에 있는(=점수에 쓰이는) 카테고리만, 지표는 한 줄에 하나씩
+    lines: list[tuple[float, str]] = [(1, f"{ko} {_cat(r.categories[c])}")
+                                      for c, ko in CATEGORY_KO.items() if c in r.categories]
     if r.reauth_days is not None and r.reauth_days <= 14:
         lines.append((2, f"⚠ 재인증 필요: D-{max(r.reauth_days, 0)}"))
     if r.missing:

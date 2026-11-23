@@ -205,3 +205,11 @@ def test_all_drivers_shown_split_across_messages():
     assert mid_msgs[1].splitlines()[0] == f"[중기적 2/{total}]"
     assert sum(m.count("•") for m in mid_msgs) == len(names)
     assert all(len(m) <= 200 for m in msgs)
+
+
+def test_footer_skips_categories_not_in_report():
+    cats = {"market": 0.8, "sentiment": 0.9, "macro": 0.0}
+    _, m2 = format_messages(_report(categories=cats))
+    lines = m2.splitlines()
+    assert lines[:3] == ["시장 +0.8", "심리 +0.9", "매크로 +0.0"]
+    assert not any(l.startswith("지정학") for l in lines)
