@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 from .config import load_config
 from .data import DataSourceError, MarketData, collect_all
-from .indicators import compute_raw, to_signals
+from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
 from .message import Report, format_messages
 from .scoring import Calibration, score_frame
@@ -22,6 +22,7 @@ from .scoring import Calibration, score_frame
 log = logging.getLogger("nasdaq_signal")
 KST = timezone(timedelta(hours=9))  # 한국은 서머타임 없음
 ERROR_TEXT = "[나스닥 방향성] 오류: 핵심 데이터 수집 실패 — 로그 확인"
+UNEXPECTED_TEXT = "[나스닥 방향성] 오류: 실행 중 예외 발생 — 로그 확인"
 HISTORY_YEARS = 7
 
 
@@ -34,10 +35,12 @@ def _last(frame: pd.DataFrame, col: str) -> float:
 
 
 def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | None) -> tuple[Report, dict]:
-    raw = compute_raw(md.frame)
+    raw = mask_missing(compute_raw(md.frame), md.missing)
     signals = to_signals(raw, cfg)
     last = score_frame(signals, cfg).iloc[-1]
-    cals = Calibration.load_all(cfg["paths"]["calibration"]) or {}
+    cal_path = cfg["paths"]["calibration"]
+    stale = not Calibration.is_valid_for(Calibration.load_meta(cal_path), cfg)
+    cals = {} if stale else (Calibration.load_all(cal_path) or {})
     scores, probs = {}, {}
     for h in cfg["horizons"]:
         s = float(last[f"{h}_score"])
@@ -54,6 +57,7 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         missing=list(md.missing),
         low_confidence=any(float(last[f"{h}_missing"]) > cfg["low_confidence_missing"] for h in cfg["horizons"]),
         reauth_days=reauth_days,
+        calibration_stale=stale,
     )
     row = {"date": run_date.isoformat(), "as_of": md.as_of.isoformat()}
     row.update({f"raw_{k}": v for k, v in raw.iloc[-1].items()})
@@ -122,20 +126,26 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 client.send_text(t, link)
 
-    start = (run_date - timedelta(days=365 * HISTORY_YEARS)).isoformat()
     try:
+        start = (run_date - timedelta(days=365 * HISTORY_YEARS)).isoformat()
         md = collect_all(cfg, start)
-    except DataSourceError as e:
-        log.exception("core data failure: %s", e)
-        deliver([ERROR_TEXT])
+        reauth = client.days_until_reauth() if client else None
+        report, row = build_report(cfg, md, run_date, reauth)
+        deliver(format_messages(report, cfg["arrow_threshold"]))
+        log.info("sent: scores=%s missing=%s", report.scores, report.missing)
+    except Exception as e:  # 어떤 실패든 로그 + 오류 알림 (조용한 실패 금지)
+        log.exception("run failed: %s", e)
+        try:
+            deliver([ERROR_TEXT if isinstance(e, DataSourceError) else UNEXPECTED_TEXT])
+        except Exception:
+            log.exception("error notification also failed")
         return 1
 
-    reauth = client.days_until_reauth() if client else None
-    report, row = build_report(cfg, md, run_date, reauth)
-    append_history(cfg["paths"]["history"], row)
-    msgs = format_messages(report, cfg["arrow_threshold"])
-    deliver(msgs)
-    log.info("done: scores=%s missing=%s", report.scores, report.missing)
+    if not args.dry_run:
+        try:  # 기록 실패(예: 엑셀이 파일을 잡고 있음)는 발송을 막지 않음
+            append_history(cfg["paths"]["history"], row)
+        except Exception:
+            log.exception("history write failed")
     return 0
 
 

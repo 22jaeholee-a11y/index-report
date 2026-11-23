@@ -107,3 +107,20 @@ def test_collect_all_tolerates_weekly_fred_gap(monkeypatch):
     md = collect_all(load_config(), "2024-01-01", include_extras=False)
     assert "nfci" not in md.missing
     assert md.frame["nfci"].iloc[-1] == 1.0
+
+
+def test_fred_failure_is_per_series_and_does_not_log_key(monkeypatch, caplog):
+    def get(url, params=None, timeout=None, **kw):
+        if params["series_id"] == "NFCI":
+            r = FakeResp({}, status=500)
+            def rfs():
+                raise RuntimeError(f"500 Server Error for url: {url}?api_key={params['api_key']}")
+            r.raise_for_status = rfs
+            return r
+        return FakeResp({"observations": [{"date": "2024-01-02", "value": "1.0"}]})
+    monkeypatch.setattr(fred.requests, "get", get)
+    with caplog.at_level("WARNING"):
+        df = fred.fetch_fred({"DGS10": 1, "NFCI": 5}, "2024-01-01", "SECRETKEY123")
+    assert "dgs10" in df.columns and "nfci" not in df.columns
+    assert "SECRETKEY123" not in caplog.text
+    assert "NFCI" in caplog.text

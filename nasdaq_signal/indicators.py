@@ -78,3 +78,21 @@ def to_signals(raw: pd.DataFrame, cfg: dict) -> dict[str, pd.DataFrame]:
             cols[name] = _transform(pct[name], transform, direction, band).clip(-1, 1)
         out[h] = pd.DataFrame(cols, index=raw.index)
     return out
+
+
+INDICATOR_SOURCES = {
+    "trend_50": ["ndx"], "trend_200": ["ndx"], "ret_20": ["ndx"], "ret_60": ["ndx"], "drawdown_52w": ["ndx"],
+    "breadth": ["rsp", "spy"], "vix": ["vix"], "vix_term": ["vix", "vix3m"], "gpr": ["gpr"],
+    "oil_ret_20": ["oil"], "gold_ret_20": ["gold"], "us10y_chg_20": ["dgs10"], "curve": ["t10y2y"],
+    "hy_spread": ["bamlh0a0hym2"], "dxy_ret_60": ["dxy"], "nfci": ["nfci"], "sahm": ["sahmrealtime"],
+}
+
+
+def mask_missing(raw: pd.DataFrame, missing: list[str]) -> pd.DataFrame:
+    """기준일에 누락(오래됨 포함)으로 판정된 원천을 쓰는 지표는 마지막 행을 NaN으로 — 오래된 값으로 점수 내지 않음."""
+    out = raw.copy()
+    gone = set(missing)
+    for name, sources in INDICATOR_SOURCES.items():
+        if name in out and gone.intersection(sources):
+            out.iloc[-1, out.columns.get_loc(name)] = np.nan
+    return out

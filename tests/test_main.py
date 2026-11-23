@@ -81,7 +81,6 @@ def test_dry_run_sends_nothing(tmp_path, monkeypatch, capsys):
     rc, client = _run(tmp_path, monkeypatch, extra=["--dry-run"])
     assert rc == 0 and client.sent == []
     assert "[나스닥 방향성]" in capsys.readouterr().out
-    assert (tmp_path / "history.csv").exists()
 
 
 def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
@@ -105,3 +104,55 @@ def test_fred_missing_still_sends_with_warning(tmp_path, monkeypatch):
 def test_auth_error_returns_2(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch, client=FakeClient(auth_error=True))
     assert rc == 2 and client.sent == []
+
+
+def test_unexpected_error_sends_error_message_and_logs(tmp_path, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("corrupt calibration")
+    monkeypatch.setattr(m, "build_report", boom)
+    rc, client = _run(tmp_path, monkeypatch)
+    assert rc == 1 and len(client.sent) == 1 and "오류" in client.sent[0]
+    log_text = "".join(p.read_text(encoding="utf-8") for p in (tmp_path / "logs").glob("*.log"))
+    assert "corrupt calibration" in log_text
+
+
+def test_history_write_failure_does_not_block_messages(tmp_path, monkeypatch):
+    def locked(*a, **k):
+        raise PermissionError("history.csv is open in Excel")
+    monkeypatch.setattr(m, "append_history", locked)
+    rc, client = _run(tmp_path, monkeypatch)
+    assert rc == 0 and len(client.sent) == 2
+
+
+def test_dry_run_does_not_write_history(tmp_path, monkeypatch):
+    _run(tmp_path, monkeypatch, extra=["--dry-run"])
+    assert not (tmp_path / "history.csv").exists()
+
+
+def test_missing_source_is_not_scored(tmp_path):
+    from nasdaq_signal.config import load_config
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    md = _md()
+    md.missing = ["gpr"]
+    _, row = m.build_report(cfg, md, date(2026, 11, 21), None)
+    assert np.isnan(row["raw_gpr"])
+    assert not np.isnan(row["short_geo"])          # 유가·금으로 계산
+    assert row["short_missing"] > 0
+
+
+def test_mismatched_calibration_hides_probabilities(tmp_path):
+    from nasdaq_signal.scoring import Calibration, config_fingerprint
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    s = pd.Series(np.linspace(-100, 99, 4000))
+    l = pd.Series(["up"] * 4000)
+    cals = {h: Calibration.from_backtest(s, l, 20) for h in ("short", "mid", "long")}
+    Calibration.save_all(cals, cfg["paths"]["calibration"], meta={"config": "other", "missing": []})
+    report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
+    assert all(p is None for p in report.probs.values())
+    assert report.calibration_stale
+    Calibration.save_all(cals, cfg["paths"]["calibration"], meta={"config": config_fingerprint(cfg), "missing": ["dgs10"]})
+    report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
+    assert report.calibration_stale
+    Calibration.save_all(cals, cfg["paths"]["calibration"], meta={"config": config_fingerprint(cfg), "missing": ["fear_greed"]})
+    report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
+    assert not report.calibration_stale and report.probs["short"] is not None

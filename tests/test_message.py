@@ -99,3 +99,8 @@ def test_nan_category_and_key_values_shown_as_dash():
 def test_tiny_negative_category_shows_zero_without_sign_noise():
     _, m2 = format_messages(_report(categories={**CATS, "sentiment": -0.04}))
     assert "심리 +0.0" in m2.splitlines()[0]
+
+
+def test_stale_calibration_warning_line():
+    _, m2 = format_messages(_report(calibration_stale=True))
+    assert "⚠ 확률표 갱신 필요(백테스트 재실행)" in m2

@@ -33,6 +33,7 @@ class Report:
     missing: list[str]
     low_confidence: bool
     reauth_days: int | None
+    calibration_stale: bool = False
 
 
 def _isnan(v) -> bool:
@@ -96,6 +97,8 @@ def _message_two(r: Report) -> str:
         lines.append((2, f"⚠ 재인증 필요: D-{max(r.reauth_days, 0)}"))
     if r.missing:
         lines.append((3, _missing_line(r.missing)))
+    if r.calibration_stale:
+        lines.append((3.5, "⚠ 확률표 갱신 필요(백테스트 재실행)"))
     lines.append((4, f"VIX {_num(kv.get('vix'), '.1f')} · 10년물 {_num(kv.get('us10y'), '.2f')}"
                      f"{'' if _isnan(kv.get('us10y')) else '%'} · HY {_num(kv.get('hy_spread'), '.2f')}"
                      f"{'' if _isnan(kv.get('hy_spread')) else '%'}"))

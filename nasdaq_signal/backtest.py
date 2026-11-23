@@ -7,7 +7,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .indicators import compute_raw, to_signals
-from .scoring import Calibration, score_frame
+from .scoring import Calibration, config_fingerprint, score_frame
 
 
 def forward_labels(ndx: pd.Series, days: int, up: float, down: float) -> pd.Series:
@@ -34,7 +34,7 @@ def _stats(score: pd.Series, label: pd.Series, fwd: pd.Series, threshold: float)
     }
 
 
-def run_backtest(cfg: dict, frame: pd.DataFrame) -> dict:
+def run_backtest(cfg: dict, frame: pd.DataFrame, missing: list[str] | tuple = ()) -> dict:
     bt = cfg["backtest"]
     scores = score_frame(to_signals(compute_raw(frame), cfg), cfg)
     start, split = pd.Timestamp(bt["start"]), pd.Timestamp(bt["split"])
@@ -50,7 +50,8 @@ def run_backtest(cfg: dict, frame: pd.DataFrame) -> dict:
         result["train"][h] = _stats(s[train], label[train], fwd[train], cfg["arrow_threshold"])
         result["test"][h] = _stats(s[test], label[test], fwd[test], cfg["arrow_threshold"])
         cals[h] = Calibration.from_backtest(s[test], label[test], bt["bucket"])
-    Calibration.save_all(cals, cfg["paths"]["calibration"])
+    Calibration.save_all(cals, cfg["paths"]["calibration"],
+                         meta={"config": config_fingerprint(cfg), "missing": list(missing)})
     return result
 
 
@@ -67,7 +68,7 @@ def main() -> None:
     cfg = load_config()
     md = collect_all(cfg, "2003-01-01")
     print(f"데이터 기준일 {md.as_of}, 누락: {md.missing or '없음'}")
-    res = run_backtest(cfg, md.frame)
+    res = run_backtest(cfg, md.frame, md.missing)
     print(f"{'구간':<6}{'기간':<7}{'표본':>7}{'적중률':>9}{'상관':>8}")
     for part in ("train", "test"):
         for h, st in res[part].items():
@@ -75,6 +76,8 @@ def main() -> None:
             co = f"{st['corr']:+.3f}" if st["corr"] is not None else "-"
             print(f"{part:<8}{h:<7}{st['n']:>7}{hr:>9}{co:>8}")
     print(f"보정표 저장: {cfg['paths']['calibration']}")
+    if not Calibration.is_valid_for(Calibration.load_meta(cfg["paths"]["calibration"]), cfg):
+        print("⚠ 점수 지표가 누락된 상태로 만든 보정표입니다 — 일일 메시지에 확률이 표시되지 않습니다.")
 
 
 if __name__ == "__main__":

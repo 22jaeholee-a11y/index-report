@@ -34,3 +34,16 @@ def test_calibration_uses_only_test_period(tmp_path):
         assert counts[:, 3].sum() > 0
         assert result["test"][h]["n"] == counts[:, 3].sum()
         assert result["train"][h]["n"] > 0
+
+
+def test_backtest_stores_config_fingerprint_and_missing(tmp_path):
+    from nasdaq_signal.scoring import Calibration, config_fingerprint
+    cfg = load_config()
+    cfg.update(percentile_window=100, percentile_min_periods=20)
+    cfg["paths"]["calibration"] = str(tmp_path / "cal.json")
+    idx = pd.bdate_range("2014-01-01", periods=900)
+    cfg["backtest"] = {"start": str(idx[0].date()), "split": str(idx[400].date()), "bucket": 20}
+    frame = pd.DataFrame({"ndx": np.linspace(100, 200, len(idx))}, index=idx)
+    run_backtest(cfg, frame, missing=["dgs10"])
+    meta = Calibration.load_meta(cfg["paths"]["calibration"])
+    assert meta == {"config": config_fingerprint(cfg), "missing": ["dgs10"]}

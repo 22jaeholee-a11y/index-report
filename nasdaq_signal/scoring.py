@@ -1,12 +1,23 @@
 """카테고리·기간 가중 합산, 화살표, 확률 보정표."""
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+FINGERPRINT_KEYS = ("horizons", "category_weights", "indicators", "percentile_window",
+                    "percentile_min_periods", "contrarian_band", "fred_series")
+REFERENCE_ONLY = {"fear_greed"}  # 점수에 쓰이지 않는 참고값 — 보정표 유효성에 영향 없음
+
+
+def config_fingerprint(cfg: dict) -> str:
+    sub = {k: cfg.get(k) for k in FINGERPRINT_KEYS}
+    return hashlib.sha256(json.dumps(sub, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+
 
 LABELS = ("up", "flat", "down")
 MIN_SAMPLES = 30
@@ -83,10 +94,11 @@ class Calibration:
         return tuple(floors)  # type: ignore[return-value]
 
     @staticmethod
-    def save_all(cals: dict[str, "Calibration"], path: str | Path) -> None:
+    def save_all(cals: dict[str, "Calibration"], path: str | Path, meta: dict | None = None) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        payload = {h: {str(k): v for k, v in sorted(c.counts.items())} for h, c in cals.items()}
+        payload: dict = {h: {str(k): v for k, v in sorted(c.counts.items())} for h, c in cals.items()}
         payload["_bucket"] = next(iter(cals.values())).bucket if cals else 20
+        payload["_meta"] = meta
         Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
     @staticmethod
@@ -96,4 +108,19 @@ class Calibration:
             return None
         payload = json.loads(p.read_text(encoding="utf-8"))
         bucket = payload.pop("_bucket", 20)
+        payload.pop("_meta", None)
         return {h: Calibration({int(k): v for k, v in d.items()}, bucket) for h, d in payload.items()}
+
+    @staticmethod
+    def load_meta(path: str | Path) -> dict | None:
+        p = Path(path)
+        if not p.exists():
+            return None
+        return json.loads(p.read_text(encoding="utf-8")).get("_meta")
+
+    @staticmethod
+    def is_valid_for(meta: dict | None, cfg: dict) -> bool:
+        """보정표가 현재 설정으로, 점수 지표 누락 없이 만들어졌는지."""
+        if not meta or meta.get("config") != config_fingerprint(cfg):
+            return False
+        return not (set(meta.get("missing") or []) - REFERENCE_ONLY)
