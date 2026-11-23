@@ -201,9 +201,10 @@ def _message_two(r: Report) -> str:
     return "\n".join(l for _, l in lines)
 
 
-def format_messages(report: Report, arrow_threshold: float = 20) -> list[str]:
+def format_messages(report: Report, arrow_threshold: float = 20, reasons: bool = True) -> list[str]:
+    """reasons=False면 근거(단기적·중기적) 메시지 없이 요약 + 지표만."""
     msgs = [_message_one(report, arrow_threshold)]
-    if report.drivers:
+    if reasons and report.drivers:
         for h in HORIZON_KO:
             if h not in report.unpredicted:
                 msgs += _reason_messages(report, h, arrow_threshold)

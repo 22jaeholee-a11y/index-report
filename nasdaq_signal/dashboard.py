@@ -374,7 +374,7 @@ th { color: var(--text-secondary); font-weight: 600; }
     const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
     Object.keys(T).forEach(h => {
       const t = T[h];
-      let html = `<section class="card"><div class="head2"><h2>오늘의 근거 · ${esc(t.title)}</h2>` +
+      let html = `<section class="card"><div class="head2"><h2>${esc(t.title)}</h2>` +
         `<span class="sc">${t.score > 0 ? "+" : ""}${Math.round(t.score)} <span class="pos">${esc(t.position)}</span></span></div>` +
         `<table class="drv"><tbody>`;
       t.drivers.forEach(d => {

@@ -165,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         md = collect_all(cfg, start)
         reauth = client.days_until_reauth() if client else None
         report, row = build_report(cfg, md, run_date, reauth)
-        deliver(format_messages(report, cfg["arrow_threshold"]))
+        deliver(format_messages(report, cfg["arrow_threshold"], reasons=cfg["kakao"].get("send_reasons", False)))
         log.info("%s: scores=%s missing=%s", "dry-run" if args.dry_run else "sent",
                  report.scores, report.missing)
     except Exception as e:  # 어떤 실패든 로그 + 오류 알림 (조용한 실패 금지)

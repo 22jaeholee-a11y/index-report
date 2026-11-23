@@ -87,8 +87,8 @@ def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
     assert rc == 0 and _structure_ok(client.sent)
     assert client.sent[0].startswith("[나스닥 방향성] 11/21(토) · 11/20 마감")
-    assert any(m.startswith("[단기적") for m in client.sent) and any(m.startswith("[중기적") for m in client.sent)
-    assert "•" in client.sent[1]
+    assert len(client.sent) == 2   # 근거(단기적·중기적)는 웹에서만
+    assert not any(m.startswith(("[단기적", "[중기적")) for m in client.sent)
 
 
 def test_core_data_failure_sends_error_message(tmp_path, monkeypatch):
@@ -175,11 +175,9 @@ def test_unpredicted_long_uses_base_rates_and_ignores_long_missing(tmp_path, mon
 
 
 def _structure_ok(sent):
-    """요약 → 단기적·중기적 근거(나눠질 수 있음) → 지표 순서, 모두 200자 이하."""
-    if len(sent) < 4 or not sent[0].startswith("[나스닥 방향성]") or not sent[-1].startswith("시장 "):
-        return False
-    middle = [m.splitlines()[0] for m in sent[1:-1]]
-    return all(h.startswith(("[단기적", "[중기적")) for h in middle) and all(len(m) <= 200 for m in sent)
+    """카톡은 요약(나스닥 방향성) → 지표 2통, 모두 200자 이하."""
+    return (len(sent) == 2 and sent[0].startswith("[나스닥 방향성]") and sent[1].startswith("시장 ")
+            and all(len(m) <= 200 for m in sent))
 
 
 def test_build_report_includes_all_active_drivers_and_score_position(tmp_path):

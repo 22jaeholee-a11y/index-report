@@ -91,3 +91,8 @@ def test_tabs_and_no_bar_legend_text(tmp_path):
     assert 'id="tab-today"' in html and 'id="tab-chart"' in html
     assert 'id="panel-today"' in html and 'id="panel-chart"' in html
     assert "막대 = 기여 점수" not in html
+
+
+def test_today_card_title_is_short():
+    src = open("nasdaq_signal/dashboard.py", encoding="utf-8").read()
+    assert "오늘의 근거 · ${" not in src
