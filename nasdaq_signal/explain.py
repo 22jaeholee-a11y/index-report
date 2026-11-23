@@ -20,6 +20,8 @@ class Driver:
     eff_sign: int       # +1: 값이 높을수록 이후 상승 경향, -1: 높을수록 하락 경향
     contrarian: bool    # 극단 구간에서만 작동하는 역발상 신호
     max_points: float = math.nan  # 이 지표가 낼 수 있는 최대 기여 (± 대칭)
+    prev_value: float = math.nan  # 전 거래일 원지표 값
+    prev_points: float = math.nan  # 전 거래일 기여 점수
 
 
 def _pct(v: float) -> str:
@@ -84,14 +86,49 @@ def last_percentiles(raw: pd.DataFrame, cfg: dict) -> pd.Series:
 
 
 def top_drivers(sig_row: pd.Series, raw_row: pd.Series, pct_row: pd.Series, cfg: dict, h: str,
-                n: int = 4, min_points: float = 1.0) -> list[Driver]:
+                n: int = 4, min_points: float = 1.0, prev_sig_row: pd.Series | None = None,
+                prev_raw_row: pd.Series | None = None) -> list[Driver]:
     caps = max_points(sig_row, cfg, h)
     contrib = {k: caps[k] * float(sig_row[k]) for k in caps}
+    prev_contrib = contributions(prev_sig_row, cfg, h) if prev_sig_row is not None else {}
     ranked = sorted((kv for kv in contrib.items() if abs(kv[1]) >= min_points), key=lambda kv: -abs(kv[1]))[:n]
     return [Driver(name, float(raw_row.get(name, np.nan)), float(pct_row.get(name, np.nan)), pts,
                    effective_sign(cfg, name, h), _setting(cfg, name, h, "transform") == "contrarian",
-                   caps[name])
+                   caps[name],
+                   float(prev_raw_row.get(name, np.nan)) if prev_raw_row is not None else math.nan,
+                   float(prev_contrib.get(name, math.nan)))
             for name, pts in ranked]
+
+
+# 전일 대비 변화 표시 단위: (배율, 소수 자릿수, 접미사)
+_PCT_NAMES = {"trend_50", "trend_200", "ret_20", "ret_60", "drawdown_52w", "breadth", "oil_ret_20",
+              "gold_ret_20", "credit", "dxy_ret_60"}
+DELTA_UNITS: dict[str, tuple[float, int, str]] = {
+    **{n: (100, 1, "%p") for n in _PCT_NAMES},                # 비율 지표: %p
+    "us10y_chg_20": (100, 0, "bp"), "us2y_chg_20": (100, 0, "bp"), "breakeven_chg_20": (100, 0, "bp"),
+    "curve": (1, 2, "%p"), "vix": (1, 1, ""), "vix_term": (1, 2, ""), "gpr": (1, 0, ""),
+    "nfci": (1, 2, ""), "sahm": (1, 2, ""),
+}
+
+
+def format_delta(name: str, value: float, prev: float) -> tuple[str | None, str | None]:
+    """전일 대비 변화 → (표시 문자열, 'up'|'down'|'flat'). 비교 불가면 (None, None)."""
+    if value is None or prev is None or math.isnan(value) or math.isnan(prev):
+        return None, None
+    mult, nd, suffix = DELTA_UNITS.get(name, (1, 2, ""))
+    d = round((value - prev) * mult, nd)
+    if d == 0:
+        return "0", "flat"
+    return f"{d:+.{nd}f}{suffix}", ("up" if d > 0 else "down")
+
+
+def points_delta(points: float, prev: float) -> tuple[str | None, str | None]:
+    if prev is None or math.isnan(prev):
+        return None, None
+    d = round(points - prev)
+    if d == 0:
+        return "0", "flat"
+    return f"{d:+d}", ("up" if d > 0 else "down")
 
 
 def describe(d: Driver) -> str:
@@ -147,6 +184,9 @@ def driver_view(d: Driver) -> dict:
     learned = f"과거 데이터상 값이 높을수록 이후 {'상승' if d.eff_sign > 0 else '하락'}"
     if d.contrarian:
         learned += " (5년 상·하위 10% 극단 구간에서만 작동)"
+    vchg, vdir = format_delta(d.name, d.value, d.prev_value)
+    pchg, pdir = points_delta(d.points, d.prev_points)
     return {"name": d.name, "label": label, "what": what, "learned": learned, "value": value,
             "position": position, "points": round(d.points, 1),
-            "max": None if math.isnan(d.max_points) else round(d.max_points, 1)}
+            "max": None if math.isnan(d.max_points) else round(d.max_points, 1),
+            "value_change": vchg, "value_dir": vdir, "points_change": pchg, "points_dir": pdir}

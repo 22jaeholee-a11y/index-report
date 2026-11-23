@@ -78,3 +78,34 @@ def test_driver_view_explains_learned_direction():
     assert "높을수록 이후 상승" in v["learned"] and "극단" in v["learned"]
     v2 = driver_view(Driver("us2y_chg_20", 0.11, 0.59, -2.0, -1, False, 14.0))
     assert "높을수록 이후 하락" in v2["learned"] and "극단" not in v2["learned"]
+
+
+def test_format_delta_uses_indicator_units():
+    from nasdaq_signal.explain import format_delta
+    assert format_delta("vix", 35.9, 34.7) == ("+1.2", "up")
+    assert format_delta("us2y_chg_20", 0.11, 0.14) == ("-3bp", "down")
+    assert format_delta("trend_200", -0.108, -0.112) == ("+0.4%p", "up")
+    assert format_delta("curve", 0.28, 0.26) == ("+0.02%p", "up")
+    assert format_delta("vix", 35.9, 35.9) == ("0", "flat")
+    assert format_delta("vix", 35.9, float("nan")) == (None, None)
+
+
+def test_driver_view_includes_day_changes():
+    from nasdaq_signal.explain import driver_view
+    v = driver_view(Driver("vix", 35.9, 0.99, 66.2, 1, False, 67.0, prev_value=28.4, prev_points=60.1))
+    assert v["value_change"] == "+7.5" and v["value_dir"] == "up"
+    assert v["points_change"] == "+6" and v["points_dir"] == "up"
+    v2 = driver_view(Driver("vix", 35.9, 0.99, 66.2, 1, False, 67.0))
+    assert v2["value_change"] is None and v2["points_change"] is None
+
+
+def test_top_drivers_attach_previous_day():
+    cfg = load_config(apply_tuning=False)
+    sig = _sig({"vix": 1.0}, cfg)
+    sig_prev = _sig({"vix": 0.5}, cfg)
+    raw = pd.Series({k: 2.0 for k in cfg["indicators"]}); raw_prev = pd.Series({k: 1.0 for k in cfg["indicators"]})
+    pct = pd.Series({k: 0.5 for k in cfg["indicators"]})
+    d = top_drivers(sig["short"].iloc[-1], raw, pct, cfg, "short", n=1,
+                    prev_sig_row=sig_prev["short"].iloc[-1], prev_raw_row=raw_prev)[0]
+    assert d.name == "vix" and d.prev_value == 1.0
+    assert d.prev_points == pytest.approx(d.points / 2)

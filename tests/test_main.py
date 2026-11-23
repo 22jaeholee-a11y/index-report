@@ -252,3 +252,12 @@ def test_footer_has_page_url_from_config(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
     cfg = yaml.safe_load(open("config.yaml", encoding="utf-8"))
     assert client.sent[-1].splitlines()[-1] == cfg["kakao"]["page_url"]
+
+
+def test_today_drivers_include_day_changes(tmp_path, monkeypatch):
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
+    t = m.today_drivers(report, cfg)
+    assert t["mid"]["score_prev"] is not None
+    d = t["mid"]["drivers"][0]
+    assert d.prev_value == d.prev_value and d.prev_points == d.prev_points   # NaN 아님

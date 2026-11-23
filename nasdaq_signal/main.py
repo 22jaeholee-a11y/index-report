@@ -64,8 +64,12 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
             if any(cfg["indicators"][n]["category"] == c for n in active_indicators(cfg, "mid"))]
     pct = last_percentiles(raw, cfg)
     # 해당 기간에 쓰이는 지표 전부 (기여 점수 큰 순)
-    drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h, n=len(cfg["indicators"]), min_points=0)
+    has_prev = len(raw) > 1   # 전 거래일 값 (웹 '오늘의 근거'의 전일 대비 표시용)
+    drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h, n=len(cfg["indicators"]), min_points=0,
+                              prev_sig_row=signals[h].iloc[-2] if has_prev else None,
+                              prev_raw_row=raw.iloc[-2] if has_prev else None)
                for h in predicted}
+    prev_scores = {h: float(sf[f"{h}_score"].iloc[-2]) for h in predicted} if has_prev else {}
     dists = {} if stale else load_score_distributions(cal_path)
     score_pct = {h: score_percentile(dists[h], scores[h]) for h in predicted
                  if h in dists and not math.isnan(scores[h])}
@@ -86,6 +90,7 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         zone=zone,
         zone_rule=zone_rule,
         page_url=cfg["kakao"].get("page_url"),
+        prev_scores=prev_scores,
     )
     row = {"date": run_date.isoformat(), "as_of": md.as_of.isoformat()}
     row.update({f"raw_{k}": v for k, v in raw.iloc[-1].items()})
@@ -97,7 +102,7 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
 
 def today_drivers(report: Report, cfg: dict) -> dict:
     """웹 '오늘의 근거' 섹션용: 예측하는 기간별 점수·위치·근거 지표."""
-    return {h: {"title": f"{HORIZON_KO[h]}적", "score": report.scores[h],
+    return {h: {"title": f"{HORIZON_KO[h]}적", "score": report.scores[h], "score_prev": report.prev_scores.get(h),
                 "position": position_text(report, h, cfg["arrow_threshold"]), "drivers": report.drivers[h]}
             for h in report.drivers}
 

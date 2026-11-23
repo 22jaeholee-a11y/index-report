@@ -14,7 +14,7 @@ import pandas as pd
 from .data import MarketData
 from .indicators import compute_raw, mask_missing, to_signals
 from .scoring import Calibration, score_frame
-from .explain import driver_view
+from .explain import driver_view, points_delta
 from .zone import zone_states
 
 CATEGORIES = ("market", "sentiment", "geo", "macro")
@@ -68,7 +68,10 @@ def _today_payload(today: dict | None) -> dict:
     """{h: {title, score, position, drivers: [Driver]}} → JSON용 (지표 설명 포함)."""
     out = {}
     for h, t in (today or {}).items():
+        prev = t.get("score_prev")
+        chg, dirn = points_delta(t["score"], prev if prev is not None else float("nan"))
         out[h] = {"title": t["title"], "score": t["score"], "position": t.get("position", ""),
+                  "score_change": chg, "score_dir": dirn,
                   "drivers": [driver_view(d) for d in t["drivers"]]}
     return out
 
@@ -130,7 +133,7 @@ _TEMPLATE = r"""<!doctype html>
   --surface-0: #f6f6f4; --surface-1: #fcfcfb; --border: #e4e3df;
   --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
   --grid: #ecebe7; --axis: #c9c8c2; --ref: #9a9993; --live: #e4e3df; --zone: #e3f1e6;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --up: #2a78d6; --down: #e34948;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --rise: #e34948; --fall: #2a78d6; --rise-text: #c4302f; --fall-text: #1c5cab;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
@@ -138,7 +141,7 @@ _TEMPLATE = r"""<!doctype html>
     --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2c;
     --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8e8d86;
     --grid: #262624; --axis: #45443f; --ref: #6f6e68; --live: #34342f; --zone: #1d2e22;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --up: #3987e5; --down: #e66767;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --rise: #e66767; --fall: #3987e5; --rise-text: #f08585; --fall-text: #6da7ec;
   }
 }
 :root[data-theme="dark"] {
@@ -146,7 +149,7 @@ _TEMPLATE = r"""<!doctype html>
   --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2c;
   --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8e8d86;
   --grid: #262624; --axis: #45443f; --ref: #6f6e68; --live: #262624;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --up: #3987e5; --down: #e66767;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --rise: #e66767; --fall: #3987e5; --rise-text: #f08585; --fall-text: #6da7ec;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -202,6 +205,8 @@ th { color: var(--text-secondary); font-weight: 600; }
 .pbar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--axis); }
 .pbar span { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
 .pnum { font-variant-numeric: tabular-nums; font-weight: 600; }
+.chg { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; margin-left: 4px; white-space: nowrap; }
+.chg.up { color: var(--rise-text); } .chg.down { color: var(--fall-text); } .chg.flat { color: var(--text-muted); }
 .head2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .head2 .sc { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
@@ -443,20 +448,22 @@ th { color: var(--text-secondary); font-weight: 600; }
     document.getElementById("table").innerHTML = h + "</tbody></table><p class='note'>● = 실제 발송된 날</p>";
   }
 
+  // 전일 대비 변화: +는 빨강, -는 파랑 (한국 주식 화면과 같은 색)
+  const chg = (v, dir) => v == null ? "" : `<span class="chg ${dir}" title="전일 대비">${esc(v)}</span>`;
   function today() {
     const T = DATA.today || {}, host = document.getElementById("today");
     Object.keys(T).forEach(h => {
       const t = T[h];
       let html = `<section class="card"><div class="head2"><h2>${esc(t.title)}</h2>` +
-        `<span class="sc">${t.score > 0 ? "+" : ""}${Math.round(t.score)} <span class="pos">${esc(t.position)}</span></span></div>` +
+        `<span class="sc">${t.score > 0 ? "+" : ""}${Math.round(t.score)}${chg(t.score_change, t.score_dir)} <span class="pos">${esc(t.position)}</span></span></div>` +
         `<table class="drv"><tbody>`;
       t.drivers.forEach(d => {
         const frac = d.max ? Math.max(-1, Math.min(1, d.points / d.max)) : 0;
         const w = Math.abs(frac) * 50, left = frac >= 0 ? 50 : 50 - w;
-        const col = frac >= 0 ? "var(--up)" : "var(--down)";
+        const col = frac >= 0 ? "var(--rise)" : "var(--fall)";   // 상승 쪽 빨강, 하락 쪽 파랑
         html += `<tr><td><div class="nm">${esc(d.label)}</div><div class="what">${esc(d.what)}</div><div class="learned">${esc(d.learned)}</div></td>` +
-          `<td class="val">${esc(d.value)}<div class="pos">${esc(d.position)}</div></td>` +
-          `<td class="pts"><span class="pnum">${d.points > 0 ? "+" : ""}${Math.round(d.points)}</span> / ${d.max == null ? "-" : Math.round(d.max)}점` +
+          `<td class="val">${esc(d.value)}${chg(d.value_change, d.value_dir)}<div class="pos">${esc(d.position)}</div></td>` +
+          `<td class="pts"><span class="pnum">${d.points > 0 ? "+" : ""}${Math.round(d.points)}</span> / ${d.max == null ? "-" : Math.round(d.max)}점${chg(d.points_change, d.points_dir)}` +
           `<div class="pbar" role="img" aria-label="${Math.round(d.points)}점"><span style="left:${left}%;width:${w}%;background:${col}"></span></div></td></tr>`;
       });
       host.insertAdjacentHTML("beforeend", html + "</tbody></table></section>");

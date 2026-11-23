@@ -130,3 +130,16 @@ def test_chart_default_range_is_one_month(tmp_path):
     assert '<button data-n="21" aria-pressed="true">1개월</button>' in html
     assert 'data-n="126" aria-pressed="true"' not in html
     assert "let N = 21," in html
+
+
+def test_today_payload_has_changes_and_korean_colors(tmp_path):
+    from nasdaq_signal.explain import Driver
+    h = build_history(_cfg(tmp_path), _md(), days=30)
+    today = {"short": {"title": "단기적", "score": 61.0, "score_prev": 58.2, "position": "상위 11%",
+                       "drivers": [Driver("vix", 35.9, 0.99, 66.0, 1, False, 67.0, 28.4, 60.0)]}}
+    html = render_html(h, generated="x", today=today)
+    payload = json.loads(re.search(r'<script id="data" type="application/json">(.*?)</script>', html, re.S).group(1))
+    t = payload["today"]["short"]
+    assert t["score_change"] == "+3" and t["score_dir"] == "up"
+    assert t["drivers"][0]["value_change"] == "+7.5"
+    assert ".chg.up" in html and "--rise:" in html and "--fall:" in html

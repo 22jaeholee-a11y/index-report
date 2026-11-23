@@ -42,6 +42,7 @@ class Report:
     zone: ZoneInfo | None = None                    # 매수 구간 상태
     zone_rule: tuple[float, float] = (20, -20)      # (진입, 청산) 중기 점수 기준
     page_url: str | None = None                     # 차트 페이지 주소 (지표 메시지 맨 끝)
+    prev_scores: dict[str, float] = field(default_factory=dict)   # 전 거래일 기간 점수 (웹 전일 대비)
 
 
 def _isnan(v) -> bool:
