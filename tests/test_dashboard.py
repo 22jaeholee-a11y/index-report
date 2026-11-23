@@ -143,3 +143,10 @@ def test_today_payload_has_changes_and_korean_colors(tmp_path):
     assert t["score_change"] == "+3" and t["score_dir"] == "up"
     assert t["drivers"][0]["value_change"] == "+7.5"
     assert ".chg.up" in html and "--rise:" in html and "--fall:" in html
+
+
+def test_long_press_scrub_support(tmp_path):
+    html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
+    assert "LONG_PRESS" in html                       # 꾹 누르기 시간
+    assert "-webkit-touch-callout: none" in html      # 꾹 누를 때 시스템 메뉴 방지
+    assert "passive: false" in html                   # 고르기 중 스크롤 막기 (touchmove preventDefault)

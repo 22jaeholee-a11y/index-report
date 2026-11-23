@@ -183,7 +183,8 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 .readout i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
 .readout b { color: var(--text-primary); font-variant-numeric: tabular-nums; margin-left: 3px; }
 .chart { position: relative; }
-svg { display: block; width: 100%; height: auto; overflow: visible; -webkit-tap-highlight-color: transparent; }
+svg { display: block; width: 100%; height: auto; overflow: visible; -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 details { margin-top: 8px; }
 summary { cursor: pointer; color: var(--text-secondary); font-size: 13.5px; padding: 6px 0; }
 .tbl { overflow-x: auto; -webkit-overflow-scrolling: touch; }
@@ -377,17 +378,27 @@ th { color: var(--text-secondary); font-weight: 600; }
     // 마우스: 누르면 바로 선택. 터치: 손가락을 대는 것만으로는 선택하지 않음 (스크롤 중 오선택 방지)
     //  - 움직이지 않고 떼면(탭) 선택, 옆으로 8px 이상 밀면(가로가 세로보다 클 때) 날짜 이동
     //  - 세로로 움직이면 페이지 스크롤로 두고 아무것도 하지 않음 (브라우저가 pointercancel 을 보냄)
-    const SLOP = 8;
-    let dragging = false, touch = null;   // touch = { x, y, id, scrub }
+    //  - 꾹 누르기(LONG_PRESS ms, 움직임 없이) → 그 자리 선택 + 고르기 모드: 손을 뗄 때까지 좌우로 움직이면 날짜 이동,
+    //    이 동안은 손가락이 위아래로 흔들려도 페이지가 스크롤되지 않음 (touchmove preventDefault)
+    const SLOP = 8, LONG_PRESS = 350;
+    let dragging = false, touch = null;   // touch = { x, y, id, scrub, timer }
+    const endTouch = () => { if (touch) clearTimeout(touch.timer); touch = null; };
+    const startScrub = e => { touch.scrub = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} };
     hit.addEventListener("pointerdown", e => {
       if (e.pointerType === "mouse") { dragging = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} setSel(idxAt(e), true); return; }
-      touch = { x: e.clientX, y: e.clientY, id: e.pointerId, scrub: false };
+      endTouch();
+      const t = touch = { x: e.clientX, y: e.clientY, id: e.pointerId, scrub: false };
+      t.timer = setTimeout(() => {                       // 꾹 누르기
+        if (touch !== t || t.scrub) return;
+        startScrub(e); setSel(idxAt(e), true);
+        if (navigator.vibrate) navigator.vibrate(10);
+      }, LONG_PRESS);
     });
     hit.addEventListener("pointermove", e => {
       if (touch && e.pointerId === touch.id) {
         const dx = Math.abs(e.clientX - touch.x), dy = Math.abs(e.clientY - touch.y);
-        if (!touch.scrub && dx > SLOP && dx > dy) { touch.scrub = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} }
-        else if (!touch.scrub && dy > SLOP) { touch = null; return; }      // 세로 = 스크롤
+        if (!touch.scrub && dx > SLOP && dx > dy) { clearTimeout(touch.timer); startScrub(e); }   // 옆으로 밀기
+        else if (!touch.scrub && dy > SLOP) { endTouch(); return; }                               // 세로 = 스크롤
         if (touch && touch.scrub) setSel(idxAt(e), true);
         return;
       }
@@ -396,9 +407,12 @@ th { color: var(--text-secondary); font-weight: 600; }
     });
     hit.addEventListener("pointerup", e => {
       if (touch && e.pointerId === touch.id && !touch.scrub) setSel(idxAt(e), true);   // 탭
-      touch = null; dragging = false;
+      endTouch(); dragging = false;
     });
-    hit.addEventListener("pointercancel", () => { touch = null; dragging = false; });
+    hit.addEventListener("pointercancel", () => { endTouch(); dragging = false; });
+    // 고르기 중에는 스크롤 막기 (pointer 이벤트만으로는 브라우저 스크롤을 못 막음)
+    hit.addEventListener("touchmove", e => { if (touch && touch.scrub && e.cancelable) e.preventDefault(); }, { passive: false });
+    svg.addEventListener("contextmenu", e => e.preventDefault());   // 꾹 누를 때 시스템 메뉴 방지
     hit.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !LOCK && !dragging) setSel(null, false); });
 
     return { show(i, mark) {
