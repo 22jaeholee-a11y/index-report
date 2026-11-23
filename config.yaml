@@ -22,7 +22,7 @@ indicators:                # transform: percentile | contrarian ; direction: +1/
   gold_ret_20:  {category: geo, transform: percentile, direction: -1}
   us10y_chg_20: {category: macro, transform: percentile, direction: -1}
   curve:        {category: macro, transform: percentile, direction: 1}
-  hy_spread:    {category: macro, transform: percentile, direction: -1}
+  credit:       {category: macro, transform: percentile, direction: 1}   # HYG/IEF 60일 변화 (신용 위험선호)
   dxy_ret_60:   {category: macro, transform: percentile, direction: -1}
   nfci:         {category: macro, transform: percentile, direction: -1}
   sahm:         {category: macro, transform: percentile, direction: -1}

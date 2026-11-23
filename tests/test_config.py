@@ -34,3 +34,14 @@ def test_rejects_weights_not_summing_to_one(tmp_path):
     p = _write_modified(tmp_path, lambda c: c["category_weights"]["market"].update(short=0.35))
     with pytest.raises(ConfigError):
         load_config(p)
+
+
+def test_accepts_exclude_override(tmp_path):
+    p = _write_modified(tmp_path, lambda c: c["indicators"]["curve"].update(horizons={"short": {"exclude": True}}))
+    assert load_config(p)["indicators"]["curve"]["horizons"]["short"]["exclude"] is True
+
+
+def test_rejects_non_bool_exclude(tmp_path):
+    p = _write_modified(tmp_path, lambda c: c["indicators"]["curve"].update(horizons={"short": {"exclude": "yes"}}))
+    with pytest.raises(ConfigError):
+        load_config(p)

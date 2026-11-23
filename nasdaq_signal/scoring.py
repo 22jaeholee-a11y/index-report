@@ -9,9 +9,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from .config import active_indicators
+
 FINGERPRINT_KEYS = ("horizons", "category_weights", "indicators", "percentile_window",
                     "percentile_min_periods", "contrarian_band", "fred_series")
-REFERENCE_ONLY = {"fear_greed"}  # 점수에 쓰이지 않는 참고값 — 보정표 유효성에 영향 없음
+REFERENCE_ONLY = {"fear_greed", "bamlh0a0hym2"}  # 표시 전용  # 점수에 쓰이지 않는 참고값 — 보정표 유효성에 영향 없음
 
 
 def config_fingerprint(cfg: dict) -> str:
@@ -27,17 +29,19 @@ def score_frame(signals: dict[str, pd.DataFrame], cfg: dict,
                 ai_adjustment: dict[str, float] | None = None) -> pd.DataFrame:
     cap = cfg["ai_adjustment_cap"]
     ai_adjustment = ai_adjustment or {}
-    cats: dict[str, list[str]] = {}
-    for name, ind in cfg["indicators"].items():
-        cats.setdefault(ind["category"], []).append(name)
-
     cols = {}
     for h, sig in signals.items():
+        cats: dict[str, list[str]] = {c: [] for c in cfg["category_weights"]}
+        for name in active_indicators(cfg, h):
+            cats[cfg["indicators"][name]["category"]].append(name)
         weighted = pd.Series(0.0, index=sig.index)
         wsum = pd.Series(0.0, index=sig.index)
         missing = pd.Series(0.0, index=sig.index)
         for cat, names in cats.items():
             w = cfg["category_weights"][cat][h]
+            if not names:  # 이 기간에 쓰는 지표가 없는 카테고리 → 가중치 재분배, 누락 아님
+                cols[f"{h}_{cat}"] = pd.Series(np.nan, index=sig.index)
+                continue
             block = sig.reindex(columns=names)
             cat_score = block.mean(axis=1, skipna=True)
             cols[f"{h}_{cat}"] = cat_score

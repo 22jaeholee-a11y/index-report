@@ -33,7 +33,8 @@ def test_message_one_without_probabilities():
 
 
 def test_negative_score_format():
-    m1, _ = format_messages(_report(scores={"short": -45.6, "mid": 0.0, "long": 20.0}))
+    m1, _ = format_messages(_report(scores={"short": -45.6, "mid": 0.0, "long": 20.0},
+                                    probs={"short": None, "mid": None, "long": None}))
     assert m1.splitlines()[1].startswith("단기 ▼ -46")
     assert m1.splitlines()[2].startswith("중기 ─ 0")
 
@@ -104,3 +105,18 @@ def test_tiny_negative_category_shows_zero_without_sign_noise():
 def test_stale_calibration_warning_line():
     _, m2 = format_messages(_report(calibration_stale=True))
     assert "⚠ 확률표 갱신 필요(백테스트 재실행)" in m2
+
+
+def test_arrow_follows_most_likely_outcome_when_probabilities_exist():
+    m1, _ = format_messages(_report(scores={"short": -40.0, "mid": 30.0, "long": 5.0},
+                                    probs={"short": (55, 30, 15), "mid": (20, 30, 50), "long": (40, 40, 20)}))
+    lines = m1.splitlines()
+    assert lines[1].startswith("단기 ▲ -40")
+    assert lines[2].startswith("중기 ▼ +30")
+    assert lines[3].startswith("장기 ─ +5")   # 동률이면 횡보
+
+
+def test_arrow_uses_score_without_probabilities():
+    m1, _ = format_messages(_report(scores={"short": -40.0, "mid": 30.0, "long": 5.0},
+                                    probs={"short": None, "mid": None, "long": None}))
+    assert m1.splitlines()[1] == "단기 ▼ -40"

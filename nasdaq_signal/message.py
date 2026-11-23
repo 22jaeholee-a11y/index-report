@@ -14,7 +14,7 @@ CATEGORY_KO = {"market": "시장", "sentiment": "심리", "geo": "지정학", "m
 MISSING_KO = {
     "fear_greed": "공포탐욕", "dgs10": "10년물", "t10y2y": "장단기차", "bamlh0a0hym2": "HY스프레드",
     "nfci": "금융여건", "sahmrealtime": "삼법칙", "gpr": "GPR", "ndx": "NDX", "spy": "SPY", "rsp": "RSP",
-    "vix": "VIX", "vix3m": "VIX3M", "oil": "유가", "gold": "금", "dxy": "달러",
+    "vix": "VIX", "vix3m": "VIX3M", "hyg": "HYG", "ief": "IEF", "oil": "유가", "gold": "금", "dxy": "달러",
 }
 MISSING_LINE_MAX = 60
 
@@ -58,6 +58,16 @@ def _cat(v) -> str:
     return "-" if _isnan(v) else format(0.0 if abs(v) < 0.05 else v, "+.1f")
 
 
+def _prob_arrow(p: tuple[int, int, int]) -> str:
+    """검증된 확률이 있으면 가장 가능성 높은 결과로 화살표 (동률은 횡보)."""
+    up, flat, down = p
+    if up > max(flat, down):
+        return "▲"
+    if down > max(up, flat):
+        return "▼"
+    return "─"
+
+
 def _message_one(r: Report, threshold: float) -> str:
     day = f"{_md(r.run_date)}({WEEKDAYS[r.run_date.weekday()]})"
     tail = f"휴장, {_md(r.as_of)} 기준" if r.market_closed else f"{_md(r.as_of)} 마감"
@@ -67,8 +77,8 @@ def _message_one(r: Report, threshold: float) -> str:
         if _isnan(s):
             lines.append(f"{ko} 계산 불가")
             continue
-        line = f"{ko} {arrow(s, threshold)} {_score(s)}"
         p = r.probs.get(h)
+        line = f"{ko} {_prob_arrow(p) if p else arrow(s, threshold)} {_score(s)}"
         if p:
             line += f" 상{p[0]} 횡{p[1]} 하{p[2]}"
         lines.append(line)

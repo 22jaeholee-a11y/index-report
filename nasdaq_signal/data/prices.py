@@ -7,6 +7,7 @@ import yfinance as yf
 PRICE_TICKERS = {
     "ndx": "^NDX", "spy": "SPY", "rsp": "RSP", "vix": "^VIX", "vix3m": "^VIX3M",
     "oil": "CL=F", "gold": "GC=F", "dxy": "DX-Y.NYB",
+    "hyg": "HYG", "ief": "IEF",
 }
 
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from .config import active_indicators
+
 HORIZONS = ("short", "mid", "long")
 
 
@@ -30,7 +32,7 @@ def compute_raw(frame: pd.DataFrame) -> pd.DataFrame:
         "gold_ret_20": c("gold").pct_change(20, fill_method=None),
         "us10y_chg_20": c("dgs10").diff(20),
         "curve": c("t10y2y"),
-        "hy_spread": c("bamlh0a0hym2"),
+        "credit": (c("hyg") / c("ief")).pct_change(60, fill_method=None),
         "dxy_ret_60": c("dxy").pct_change(60, fill_method=None),
         "nfci": c("nfci"),
         "sahm": c("sahmrealtime"),
@@ -71,7 +73,8 @@ def to_signals(raw: pd.DataFrame, cfg: dict) -> dict[str, pd.DataFrame]:
     out = {}
     for h in cfg["horizons"]:
         cols = {}
-        for name, ind in cfg["indicators"].items():
+        for name in active_indicators(cfg, h):
+            ind = cfg["indicators"][name]
             override = (ind.get("horizons") or {}).get(h, {})
             transform = override.get("transform", ind["transform"])
             direction = override.get("direction", ind["direction"])
@@ -84,7 +87,7 @@ INDICATOR_SOURCES = {
     "trend_50": ["ndx"], "trend_200": ["ndx"], "ret_20": ["ndx"], "ret_60": ["ndx"], "drawdown_52w": ["ndx"],
     "breadth": ["rsp", "spy"], "vix": ["vix"], "vix_term": ["vix", "vix3m"], "gpr": ["gpr"],
     "oil_ret_20": ["oil"], "gold_ret_20": ["gold"], "us10y_chg_20": ["dgs10"], "curve": ["t10y2y"],
-    "hy_spread": ["bamlh0a0hym2"], "dxy_ret_60": ["dxy"], "nfci": ["nfci"], "sahm": ["sahmrealtime"],
+    "credit": ["hyg", "ief"], "dxy_ret_60": ["dxy"], "nfci": ["nfci"], "sahm": ["sahmrealtime"],
 }
 
 

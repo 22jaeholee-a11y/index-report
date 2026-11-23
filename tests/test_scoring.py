@@ -91,3 +91,17 @@ def test_calibration_sparse_bucket_returns_none():
 
 def test_calibration_missing_file_returns_none(tmp_path):
     assert Calibration.load_all(tmp_path / "nope.json") is None
+
+
+def test_excluded_indicator_is_not_missing_and_not_scored():
+    cfg, sig = _signals(0.5)
+    cfg["indicators"]["curve"]["horizons"] = {"long": {"exclude": True}}
+    for h in sig:
+        sig[h] = sig[h].drop(columns=["curve"]) if h == "long" else sig[h]
+    sig["long"]["nfci"] = -1.0
+    sf = score_frame(sig, cfg)
+    assert sf["long_missing"].iloc[-1] == 0
+    # macro 활성 지표: us10y, credit/hy, dxy, nfci, sahm (curve 제외) → 평균에 curve 미포함
+    macro_active = [k for k, v in cfg["indicators"].items() if v["category"] == "macro" and k != "curve"]
+    expected = (0.5 * (len(macro_active) - 1) - 1.0) / len(macro_active)
+    assert sf["long_macro"].iloc[-1] == pytest.approx(expected)
