@@ -117,3 +117,34 @@ def test_token_file_is_owner_only(tmp_path):
     s = FileTokenStore(str(tmp_path / "t.json"))
     s.save({"access_token": "a"})
     assert stat.S_IMODE(os.stat(tmp_path / "t.json").st_mode) == 0o600
+
+
+def test_kakao_auth_without_args_prints_url_and_does_not_prompt(monkeypatch, capsys):
+    import nasdaq_signal.kakao_auth as ka
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "abc")
+    monkeypatch.setattr("builtins.input", lambda *a: (_ for _ in ()).throw(AssertionError("prompted")))
+    monkeypatch.setattr(ka, "load_dotenv", lambda *a, **k: None)
+    assert ka.main([]) == 0
+    out = capsys.readouterr().out
+    assert "kauth.kakao.com/oauth/authorize" in out and "client_id=abc" in out
+
+
+def test_kakao_auth_with_redirect_arg_exchanges_code(tmp_path, monkeypatch):
+    import nasdaq_signal.kakao_auth as ka
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "abc")
+    monkeypatch.setattr(ka, "load_dotenv", lambda *a, **k: None)
+    posts = []
+
+    def post(url, data=None, headers=None, timeout=None):
+        posts.append((url, data))
+        if url.endswith("/oauth/token"):
+            return FakeResp({"access_token": "a", "refresh_token": "r", "refresh_token_expires_in": 100})
+        return FakeResp({"result_code": 0})
+    monkeypatch.setattr(ka.requests, "post", post)
+    monkeypatch.setattr(kakao.requests, "post", post)
+    cfg = ka.load_config(apply_tuning=False)
+    cfg["paths"]["tokens"] = str(tmp_path / "t.json")
+    monkeypatch.setattr(ka, "load_config", lambda *a, **k: cfg)
+    assert ka.main(["http://localhost:5000/callback?code=XYZ"]) == 0
+    assert posts[0][1]["code"] == "XYZ"
+    assert FileTokenStore(cfg["paths"]["tokens"]).load()["refresh_token"] == "r"
