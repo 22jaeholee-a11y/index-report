@@ -96,3 +96,12 @@ def test_tabs_and_no_bar_legend_text(tmp_path):
 def test_today_card_title_is_short():
     src = open("nasdaq_signal/dashboard.py", encoding="utf-8").read()
     assert "오늘의 근거 · ${" not in src
+
+
+def test_mobile_and_synced_selection_elements(tmp_path):
+    cfg = _cfg(tmp_path)
+    html = render_html(build_history(cfg, _md(), days=30), generated="x")
+    assert 'id="selbar"' in html and "최신으로" in html     # 선택 날짜 고정 막대
+    assert "touch-action" in html                            # 모바일 가로 스크럽
+    assert "position: sticky" in html                        # 탭·선택 막대 고정
+    assert 'class="tip"' not in html                         # 떠다니는 말풍선 대신 고정 표시
