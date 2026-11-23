@@ -51,4 +51,4 @@ fred_series:               # series_id: 발표 지연(영업일)
   SAHMREALTIME: 25
 zone: {entry: 20, exit: -20}   # 매수 구간: 중기 점수 ≥ entry 진입, < exit 청산 (학습 2005~17에서 선택)
 kakao: {redirect_uri: "http://localhost:5000/callback", link_url: "https://finance.yahoo.com/quote/%5ENDX", send_reasons: false}   # 근거(단기적·중기적)는 웹에서만
-paths: {state: "state", calibration: "state/calibration.json", history: "state/history.csv", dashboard: "state/dashboard.html", tokens: "state/kakao_tokens.json", logs: "state/logs"}
+paths: {state: "state", calibration: "state/calibration.json", history: "state/history.csv", dashboard: "state/dashboard.html", publish: "public/index.html", tokens: "state/kakao_tokens.json", logs: "state/logs"}

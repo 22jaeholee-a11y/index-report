@@ -105,3 +105,21 @@ def test_mobile_and_synced_selection_elements(tmp_path):
     assert "touch-action" in html                            # 모바일 가로 스크럽
     assert "position: sticky" in html                        # 탭·선택 막대 고정
     assert 'class="tip"' not in html                         # 떠다니는 말풍선 대신 고정 표시
+
+
+def test_write_dashboard_also_publishes_copy(tmp_path):
+    from nasdaq_signal.dashboard import write_dashboard
+    cfg = _cfg(tmp_path)
+    cfg["paths"]["publish"] = str(tmp_path / "public" / "index.html")
+    write_dashboard(cfg, _md(), "x")
+    pub = tmp_path / "public" / "index.html"
+    assert pub.exists()
+    assert pub.read_text(encoding="utf-8") == (tmp_path / "dashboard.html").read_text(encoding="utf-8")
+
+
+def test_vercel_serves_only_static_public_folder():
+    import json as _json
+    v = _json.loads(open("vercel.json", encoding="utf-8").read())
+    assert v["outputDirectory"] == "public" and v["framework"] is None
+    ignore = open(".vercelignore", encoding="utf-8").read().split()
+    assert "/*" in ignore and "!/public" in ignore and "!/vercel.json" in ignore

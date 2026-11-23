@@ -86,8 +86,12 @@ def write_dashboard(cfg: dict, md: MarketData, generated: str, today: dict | Non
     path = Path(cfg["paths"].get("dashboard", Path(cfg["paths"]["state"]) / "dashboard.html"))
     path.parent.mkdir(parents=True, exist_ok=True)
     z = cfg.get("zone", {"entry": 20, "exit": -20})
-    path.write_text(render_html(build_history(cfg, md), generated, (z["entry"], z["exit"]), today),
-                    encoding="utf-8")
+    html = render_html(build_history(cfg, md), generated, (z["entry"], z["exit"]), today)
+    path.write_text(html, encoding="utf-8")
+    publish = cfg["paths"].get("publish")
+    if publish:  # 웹 배포용 사본 (git에 포함 → Vercel 정적 배포)
+        Path(publish).parent.mkdir(parents=True, exist_ok=True)
+        Path(publish).write_text(html, encoding="utf-8")
     return path
 
 

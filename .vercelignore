@@ -1,0 +1,4 @@
+# Vercel에는 정적 차트 페이지(public/)만 올림. Python 코드·설정은 배포 대상 아님
+/*
+!/public
+!/vercel.json
