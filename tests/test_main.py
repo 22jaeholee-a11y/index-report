@@ -135,11 +135,11 @@ def test_missing_source_is_not_scored(tmp_path):
     from nasdaq_signal.config import load_config
     cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
     md = _md()
-    md.missing = ["gpr"]
+    md.missing = ["rsp"]
     _, row = m.build_report(cfg, md, date(2026, 11, 21), None)
-    assert np.isnan(row["raw_gpr"])
-    assert not np.isnan(row["short_geo"])          # 유가·금으로 계산
-    assert row["short_missing"] > 0
+    assert np.isnan(row["raw_breadth"])            # RSP 누락 → 시장 폭 지표 점수 제외
+    assert not np.isnan(row["mid_market"])         # 나머지 시장 지표로 계산
+    assert row["mid_missing"] > 0
 
 
 def test_mismatched_calibration_hides_probabilities(tmp_path):
@@ -210,3 +210,11 @@ def test_dashboard_failure_does_not_block_messages(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "write_dashboard", boom)
     rc, client = _run(tmp_path, monkeypatch)
     assert rc == 0 and _structure_ok(client.sent)
+
+
+def test_inactive_category_not_shown(tmp_path):
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    for n in ("gpr", "oil_ret_20", "gold_ret_20"):
+        cfg["indicators"][n]["horizons"] = {h: {"exclude": True} for h in ("short", "mid", "long")}
+    report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
+    assert "geo" not in report.categories and "market" in report.categories

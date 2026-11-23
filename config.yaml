@@ -17,9 +17,12 @@ indicators:                # transform: percentile | contrarian ; direction: +1/
   vix:          {category: sentiment, transform: percentile, direction: -1,
                  horizons: {mid: {transform: contrarian}, long: {transform: contrarian}}}
   vix_term:     {category: sentiment, transform: percentile, direction: -1}
-  gpr:          {category: geo, transform: percentile, direction: -1}
-  oil_ret_20:   {category: geo, transform: percentile, direction: -1}
-  gold_ret_20:  {category: geo, transform: percentile, direction: -1}
+  gpr:          {category: geo, transform: percentile, direction: -1,   # 지정학: 2018~ 검증에서 반대로 작동 → 점수 제외(기록만)
+                 horizons: {short: {exclude: true}, mid: {exclude: true}, long: {exclude: true}}}
+  oil_ret_20:   {category: geo, transform: percentile, direction: -1,
+                 horizons: {short: {exclude: true}, mid: {exclude: true}, long: {exclude: true}}}
+  gold_ret_20:  {category: geo, transform: percentile, direction: -1,
+                 horizons: {short: {exclude: true}, mid: {exclude: true}, long: {exclude: true}}}
   us10y_chg_20: {category: macro, transform: percentile, direction: -1}
   us2y_chg_20:  {category: macro, transform: percentile, direction: -1}   # 2년물 20일 변화 (금리 인상 기대)
   breakeven_chg_20: {category: macro, transform: percentile, direction: -1}   # 기대인플레이션 20일 변화 (물가 우려)
@@ -37,7 +40,7 @@ low_confidence_missing: 0.3
 arrow_threshold: 20
 ai_adjustment_cap: 10
 stale_days: 5
-backtest: {start: "2005-01-01", split: "2018-01-01", bucket: 20}   # 학습 구간에 2008 금융위기 포함
+backtest: {start: "2005-01-01", split: "2018-01-01", bucket: 20, calibration: all}   # 학습 구간에 2008 금융위기 포함
 fred_series:               # series_id: 발표 지연(영업일)
   DGS10: 1
   DGS2: 1       # 2년물: 금리 인상 기대

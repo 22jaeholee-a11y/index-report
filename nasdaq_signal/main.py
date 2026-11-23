@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 from dotenv import load_dotenv
 
-from .config import load_config
+from .config import active_indicators, load_config
 from .data import DataSourceError, MarketData, collect_all
 from .dashboard import write_dashboard
 from .explain import last_percentiles, top_drivers
@@ -55,7 +55,9 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         else:
             probs[h] = cals[h].probabilities(s) if h in cals and not math.isnan(s) else None
     predicted = [h for h in cfg["horizons"] if h not in unpredicted]
-    cats = sorted({ind["category"] for ind in cfg["indicators"].values()})
+    # 중기에서 쓰이는 지표가 있는 카테고리만 표시
+    cats = [c for c in cfg["category_weights"]
+            if any(cfg["indicators"][n]["category"] == c for n in active_indicators(cfg, "mid"))]
     pct = last_percentiles(raw, cfg)
     # 해당 기간에 쓰이는 지표 전부 (기여 점수 큰 순)
     drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h, n=len(cfg["indicators"]), min_points=0)

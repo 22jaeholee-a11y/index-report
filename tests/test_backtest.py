@@ -76,3 +76,20 @@ def test_backtest_stores_score_distribution(tmp_path):
     dists = load_score_distributions(cfg["paths"]["calibration"])
     assert set(dists) >= {"short", "mid"} and len(dists["short"]) == 101
     assert dists["short"] == sorted(dists["short"])
+
+
+def test_calibration_can_use_whole_period(tmp_path):
+    cfg = load_config(apply_tuning=False)
+    cfg.update(percentile_window=100, percentile_min_periods=20)
+    cfg["paths"]["calibration"] = str(tmp_path / "cal.json")
+    idx = pd.bdate_range("2014-01-01", periods=1600)
+    split = idx[800]
+    cfg["backtest"] = {"start": str(idx[0].date()), "split": str(split.date()), "bucket": 20, "calibration": "all"}
+    ndx = np.where(idx < split, np.linspace(100, 300, len(idx)), 0.0)
+    ndx[idx >= split] = np.linspace(300, 50, (idx >= split).sum())
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame({"ndx": ndx, "vix": 20 + rng.normal(0, 1, len(idx))}, index=idx)
+    run_backtest(cfg, frame)
+    stored = json.loads(open(cfg["paths"]["calibration"], encoding="utf-8").read())
+    counts = np.array(list(stored["short"].values()))
+    assert counts[:, 0].sum() > 0 and counts[:, 2].sum() > 0   # 학습(상승)+검증(하락) 둘 다 포함

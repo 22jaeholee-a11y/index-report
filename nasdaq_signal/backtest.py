@@ -54,7 +54,9 @@ def run_backtest(cfg: dict, frame: pd.DataFrame, missing: list[str] | tuple = ()
         test = s.index >= split
         result["train"][h] = _stats(s[train], label[train], fwd[train], cfg["arrow_threshold"])
         result["test"][h] = _stats(s[test], label[test], fwd[test], cfg["arrow_threshold"])
-        cals[h] = Calibration.from_backtest(s[test], label[test], bt["bucket"])
+        # 확률표 기간: "test"(기본, 검증 구간만) 또는 "all"(학습+검증 전체 — 특정 강세장에 덜 치우침)
+        cal_mask = (s.index >= start) if bt.get("calibration", "test") == "all" else test
+        cals[h] = Calibration.from_backtest(s[cal_mask], label[cal_mask], bt["bucket"])
     Calibration.save_all(cals, cfg["paths"]["calibration"],
                          meta={"config": config_fingerprint(cfg), "missing": list(missing)}, base=base,
                          score_dists=dists)

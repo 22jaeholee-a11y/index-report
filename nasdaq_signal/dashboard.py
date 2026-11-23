@@ -295,7 +295,9 @@ th { color: var(--text-secondary); font-weight: 600; }
   }
 
   let N = 126;
-  function render() { const rows = N ? ALL.slice(-N) : ALL; CHARTS.forEach(c => draw(c, rows)); }
+  // 값이 하나도 없는 계열(예: 점수에서 뺀 카테고리)은 그리지 않음
+  const ACTIVE = CHARTS.map(c => ({ ...c, series: c.series.filter(s => ALL.some(r => r[s.key] != null)) }));
+  function render() { const rows = N ? ALL.slice(-N) : ALL; ACTIVE.forEach(c => draw(c, rows)); }
   document.querySelectorAll(".bar button").forEach(b => b.addEventListener("click", () => {
     document.querySelectorAll(".bar button").forEach(o => o.setAttribute("aria-pressed", "false"));
     b.setAttribute("aria-pressed", "true"); N = +b.dataset.n; render(); }));

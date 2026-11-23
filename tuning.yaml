@@ -26,21 +26,6 @@ overrides:
       exclude: true
     short:
       exclude: true
-  gold_ret_20:
-    mid:
-      exclude: true
-    short:
-      exclude: true
-  gpr:
-    mid:
-      direction: 1
-    short:
-      exclude: true
-  oil_ret_20:
-    mid:
-      exclude: true
-    short:
-      exclude: true
   ret_20:
     mid:
       exclude: true

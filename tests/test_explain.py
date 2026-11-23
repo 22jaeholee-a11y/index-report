@@ -26,11 +26,11 @@ def test_contributions_sum_to_score():
 
 def test_top_drivers_sorted_by_absolute_points():
     cfg = load_config(apply_tuning=False)
-    sig = _sig({"vix": 1.0, "trend_50": -0.2, "gpr": -0.9}, cfg)
+    sig = _sig({"vix": 1.0, "trend_50": -0.2, "dxy_ret_60": -0.9}, cfg)
     raw = pd.Series({k: 1.0 for k in cfg["indicators"]})
     pct = pd.Series({k: 0.5 for k in cfg["indicators"]})
     d = top_drivers(sig["short"].iloc[-1], raw, pct, cfg, "short", n=2)
-    assert [x.name for x in d] == ["vix", "gpr"]
+    assert [x.name for x in d] == ["vix", "dxy_ret_60"]
     assert d[0].points > 0 > d[1].points
     assert isinstance(d[0], Driver)
 
