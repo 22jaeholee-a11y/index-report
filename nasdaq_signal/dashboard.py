@@ -222,6 +222,8 @@ th { color: var(--text-secondary); font-weight: 600; }
   .tabs { margin: 0 -12px 12px; padding: 0 12px; }
   .selbar { margin: -12px -12px 10px; padding: 8px 12px; }
   .card { padding: 12px 10px 6px; border-radius: 10px; }
+  .bar { gap: 4px; }
+  .bar button { flex: 1 1 0; min-width: 0; padding: 7px 0; font-size: 12.5px; }   /* 기간 버튼 8개가 한 줄에 */
   /* 오늘의 근거: 표 → 카드형 (이름·설명 한 줄, 아래에 값과 막대) */
   .drv, .drv tbody, .drv tr, .drv td { display: block; width: auto; }
   .drv tr { display: grid; grid-template-columns: 1fr 1.3fr; gap: 2px 10px; padding: 10px 2px; border-bottom: 1px solid var(--border); }
@@ -247,7 +249,7 @@ th { color: var(--text-secondary); font-weight: 600; }
   </div>
   <div class="bar" role="group" aria-label="기간">
     <button data-n="21" aria-pressed="true">1개월</button><button data-n="63">3개월</button><button data-n="126">6개월</button>
-    <button data-n="252">1년</button><button data-n="1260">5년</button><button data-n="0">전체</button>
+    <button data-n="252">1년</button><button data-n="1260">5년</button><button data-n="2520">10년</button><button data-n="5040">20년</button><button data-n="0">전체</button>
   </div>
   <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
   <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · (상승 n%) = 그 점수대의 2005년 이후 실제 상승 비율 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
@@ -301,6 +303,9 @@ th { color: var(--text-secondary); font-weight: 600; }
 
   // ── 선택 상태: 4개 차트가 같은 날짜를 공유 ──
   let N = 21, ROWS = [], SEL = null, LOCK = false;   // SEL = 선택 인덱스(ROWS 기준), null = 최신
+  // 보이는 구간 (ALL 기준 시작·끝 인덱스). 기간 버튼이 정하고, 두 손가락 확대·축소로 바뀜
+  const viewFor = n => ({ s: n ? Math.max(0, ALL.length - n) : 0, e: ALL.length - 1 });
+  let VIEW = viewFor(N), PINCH = null;
   const DRAWN = [];
 
   function setSel(i, lock) {
@@ -310,7 +315,8 @@ th { color: var(--text-secondary); font-weight: 600; }
     DRAWN.forEach(d => d.show(idx, SEL != null));
     const dt = new Date(r.date + "T00:00:00");
     document.getElementById("sel-date").textContent = `${r.date} (${WD[dt.getDay()]})`;
-    const flags = [SEL == null ? "최신" : "", r.zone ? "매수 구간" : "", r.live ? "발송" : ""].filter(Boolean);
+    const isLatest = r.date === ALL[ALL.length - 1].date;   // 확대해서 과거만 볼 때는 "최신" 아님
+    const flags = [isLatest ? "최신" : "", r.zone ? "매수 구간" : "", r.live ? "발송" : ""].filter(Boolean);
     document.getElementById("sel-flags").textContent = flags.join(" · ");
   }
 
@@ -394,6 +400,7 @@ th { color: var(--text-secondary); font-weight: 600; }
     hit.addEventListener("pointerdown", e => {
       if (e.pointerType === "mouse") { dragging = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} setSel(idxAt(e), true); return; }
       endTouch();
+      if (PINCH) return;                                   // 두 번째 손가락 → 확대·축소 (날짜 선택 안 함)
       const t = touch = { x: e.clientX, y: e.clientY, id: e.pointerId, scrub: false };
       t.timer = setTimeout(() => {                       // 꾹 누르기
         if (touch !== t || t.scrub) return;
@@ -402,6 +409,7 @@ th { color: var(--text-secondary); font-weight: 600; }
       }, LONG_PRESS);
     });
     hit.addEventListener("pointermove", e => {
+      if (PINCH) { endTouch(); return; }
       if (touch && e.pointerId === touch.id) {
         const dx = Math.abs(e.clientX - touch.x), dy = Math.abs(e.clientY - touch.y);
         if (!touch.scrub && dx > SLOP && dx > dy) { clearTimeout(touch.timer); startScrub(e); }   // 옆으로 밀기
@@ -413,7 +421,7 @@ th { color: var(--text-secondary); font-weight: 600; }
       else if (e.pointerType === "mouse" && !LOCK) setSel(idxAt(e), false);  // 마우스 호버 미리보기
     });
     hit.addEventListener("pointerup", e => {
-      if (touch && e.pointerId === touch.id && !touch.scrub) setSel(idxAt(e), true);   // 탭
+      if (!PINCH && touch && e.pointerId === touch.id && !touch.scrub) setSel(idxAt(e), true);   // 탭
       endTouch(); dragging = false;
     });
     hit.addEventListener("pointercancel", () => { endTouch(); dragging = false; });
@@ -446,7 +454,7 @@ th { color: var(--text-secondary); font-weight: 600; }
   }
   function render() {
     const keep = SEL == null ? null : ROWS[SEL] && ROWS[SEL].date;   // 기간을 바꿔도 같은 날짜 유지
-    ROWS = thin(N ? ALL.slice(-N) : ALL, 1500);
+    ROWS = thin(ALL.slice(VIEW.s, VIEW.e + 1), 1500);
     DRAWN.length = 0;
     ACTIVE.forEach(c => DRAWN.push(draw(c, ROWS)));
     let j = keep ? ROWS.findIndex(r => r.date === keep) : -1;
@@ -466,7 +474,53 @@ th { color: var(--text-secondary); font-weight: 600; }
   document.addEventListener("pointercancel", () => { outside = null; });
   document.querySelectorAll(".bar button").forEach(b => b.addEventListener("click", () => {
     document.querySelectorAll(".bar button").forEach(o => o.setAttribute("aria-pressed", "false"));
-    b.setAttribute("aria-pressed", "true"); N = +b.dataset.n; render(); }));
+    b.setAttribute("aria-pressed", "true"); N = +b.dataset.n; VIEW = viewFor(N); render(); }));
+
+  // ── 확대·축소: 두 손가락 핀치(휴대폰), 트랙패드 핀치·Ctrl+휠(PC). 세 차트가 같은 구간으로 함께 바뀜 ──
+  const MIN_SPAN = 10;                       // 최소 10거래일까지 확대
+  const PTS = new Map();                     // 차트 위 손가락: id → { x, cid }
+  const plotFrac = (x, cid) => { const h = document.querySelector(`#${cid} [data-hit]`); if (!h) return 0.5;
+    const b = h.getBoundingClientRect(); return Math.min(1, Math.max(0, (x - b.left) / b.width)); };
+  let raf = 0;
+  const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
+  function setView(anchor, frac, span) {     // anchor 날짜(ALL 인덱스)가 화면의 frac 위치에 오도록
+    span = Math.max(MIN_SPAN, Math.min(ALL.length - 1, Math.round(span)));
+    const s = Math.max(0, Math.min(ALL.length - 1 - span, Math.round(anchor - frac * span)));
+    if (s === VIEW.s && s + span === VIEW.e) return;
+    VIEW = { s, e: s + span };
+    document.querySelectorAll(".bar button").forEach(o => o.setAttribute("aria-pressed", "false"));   // 기간 버튼 누르면 원래대로
+    schedule();
+  }
+  function startPinch() {
+    const [a, b] = [...PTS.values()], cx = (a.x + b.x) / 2, frac = plotFrac(cx, a.cid);
+    PINCH = { d0: Math.max(Math.abs(a.x - b.x), 30), view0: { ...VIEW }, frac0: frac, cid: a.cid };
+    PINCH.anchor = VIEW.s + frac * (VIEW.e - VIEW.s);
+  }
+  document.addEventListener("pointerdown", e => {
+    if (e.pointerType !== "touch") return;
+    const h = e.target.closest && e.target.closest("[data-hit]"); if (!h) return;
+    PTS.set(e.pointerId, { x: e.clientX, cid: h.closest(".chart").id });
+    if (PTS.size === 2) startPinch();
+  }, true);
+  document.addEventListener("pointermove", e => {
+    const p = PTS.get(e.pointerId); if (!p) return;
+    p.x = e.clientX;
+    if (!PINCH || PTS.size < 2) return;
+    const [a, b] = [...PTS.values()], d = Math.max(Math.abs(a.x - b.x), 30);
+    const span0 = PINCH.view0.e - PINCH.view0.s;
+    setView(PINCH.anchor, plotFrac((a.x + b.x) / 2, PINCH.cid), span0 * PINCH.d0 / d);   // 벌리면 확대, 모으면 축소, 같이 밀면 이동
+  }, true);
+  const lift = e => { PTS.delete(e.pointerId); if (PTS.size < 2) PINCH = null; };
+  document.addEventListener("pointerup", lift, true);
+  document.addEventListener("pointercancel", lift, true);
+  document.addEventListener("touchmove", e => { if (PINCH && e.cancelable) e.preventDefault(); }, { passive: false });   // 핀치 중 페이지 스크롤·확대 방지
+  document.addEventListener("wheel", e => {   // PC: 트랙패드 핀치(=ctrlKey 휠) 또는 Ctrl+휠
+    if (!e.ctrlKey) return;
+    const h = e.target.closest && e.target.closest("[data-hit]"); if (!h) return;
+    e.preventDefault();
+    const cid = h.closest(".chart").id, frac = plotFrac(e.clientX, cid), span = VIEW.e - VIEW.s;
+    setView(VIEW.s + frac * span, frac, span * Math.exp(e.deltaY * 0.01));
+  }, { passive: false });
   let rt, lastW = window.innerWidth;
   window.addEventListener("resize", () => { if (window.innerWidth === lastW) return; lastW = window.innerWidth;   // 모바일 주소창 높이 변화는 무시
     clearTimeout(rt); rt = setTimeout(() => { if (!document.getElementById("panel-chart").hidden) render(); }, 150); });

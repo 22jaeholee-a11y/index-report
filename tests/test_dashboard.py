@@ -187,3 +187,11 @@ def test_no_sent_day_shading_or_long_note(tmp_path):
     html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
     assert "실제 발송된 날 음영" not in html and 'css("--live")' not in html
     assert "회색 음영은" not in html and "차트를 누르거나 좌우로 밀면" not in html
+
+
+def test_10y_20y_buttons_and_pinch_zoom_code(tmp_path):
+    html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
+    for n, label in ((2520, "10년"), (5040, "20년")):
+        assert f'<button data-n="{n}">{label}</button>' in html
+    assert "function startPinch(" in html          # 두 손가락 확대·축소
+    assert "ctrlKey" in html                         # PC: 트랙패드 핀치 / Ctrl+휠
