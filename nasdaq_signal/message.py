@@ -211,3 +211,62 @@ def format_messages(report: Report, arrow_threshold: float = 20, reasons: bool =
             if h not in report.unpredicted:
                 msgs += _reason_messages(report, h, arrow_threshold)
     return msgs + [_message_two(report)]
+
+
+def _zone_line_single(z: ZoneInfo, rule: tuple[float, float]) -> str:
+    entry, _ = rule
+    if z.status == "entry":
+        return f"매수 구간 진입 신호 (중기 {_score(z.score)})"
+    if z.status == "hold":
+        return f"매수 구간 D+{z.days} ({_md(z.since)} 신호 후 {z.ret:+.1%})"
+    if z.status == "exit":
+        return f"매수 구간 청산 신호 (신호 후 {z.ret:+.1%})"
+    return f"매수 구간 대기 (중기 {_score(z.score)} / 진입 {_score(entry)})"
+
+
+def format_single(r: Report, arrow_threshold: float = 20) -> str:
+    """카톡 1통 (200자 이하). 차트 주소는 본문이 아니라 메시지 버튼으로 보냄.
+
+    [NASDAQ] 11/23(월)
+    단기 ▲ 상승 56 · 횡보 21 · 하락 23
+    중기 ▲ 상승 73 · 횡보 13 · 하락 14
+    매수 구간 D+20 (10/23 신호 후 -14.5%)
+    (빈 줄)
+    10년물 5.04% / HY 3.52% / NASDAQ 선물 +0.8% / Fear & Greed Index 10 (+ 경고)
+    """
+    head = [f"[NASDAQ] {_md(r.run_date)}({WEEKDAYS[r.run_date.weekday()]})"]
+    for h in ("short", "mid"):
+        if h in r.unpredicted:
+            continue
+        ko, s, p = HORIZON_KO[h], r.scores.get(h), r.probs.get(h)
+        if _isnan(s):
+            head.append(f"{ko} 계산 불가")
+        elif p:
+            head.append(f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]}")
+        else:
+            head.append(f"{ko} {arrow(s, arrow_threshold)} {_score(s)}")
+    if r.zone is not None:
+        head.append(_zone_line_single(r.zone, r.zone_rule))
+
+    kv = r.key_values
+    pct = lambda v: "-" if _isnan(v) else f"{v:.2f}%"  # noqa: E731
+    # (우선순위, 줄) — 숫자가 클수록 200자 넘을 때 먼저 빠짐. 표시 순서는 목록 순서
+    body: list[tuple[float, str]] = [(4, f"10년물 {pct(kv.get('us10y'))}"), (4.2, f"HY {pct(kv.get('hy_spread'))}")]
+    if r.nq_change is not None:
+        body.append((3.8, f"NASDAQ 선물 {r.nq_change * 100:+.1f}%"))
+    if r.fear_greed is not None:
+        body.append((5, f"Fear & Greed Index {round(r.fear_greed)}"))
+    if r.reauth_days is not None and r.reauth_days <= 14:
+        body.append((1, f"⚠ 재인증 필요: D-{max(r.reauth_days, 0)}"))
+    if r.low_confidence:
+        body.append((1.5, "⚠ 신뢰도 낮음(데이터 누락)"))
+    if r.missing:
+        body.append((3, _missing_line(r.missing)))
+    if r.calibration_stale:
+        body.append((3.5, "⚠ 확률표 갱신 필요(백테스트 재실행)"))
+
+    def text() -> str:
+        return "\n".join(head + ([""] + [l for _, l in body] if body else []))
+    while len(text()) > MAX_LEN and body:
+        body.remove(max(body, key=lambda x: x[0]))
+    return text()

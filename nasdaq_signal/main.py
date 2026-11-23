@@ -18,7 +18,7 @@ from .dashboard import write_dashboard
 from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import EncryptedFileTokenStore, FileTokenStore, KakaoAuthError, KakaoClient
-from .message import HORIZON_KO, Report, format_messages, position_text
+from .message import HORIZON_KO, Report, format_single, position_text
 from .zone import zone_info
 from .scoring import (Calibration, base_probabilities, load_score_distributions, score_frame,
                       score_percentile)
@@ -28,6 +28,12 @@ KST = timezone(timedelta(hours=9))  # 한국은 서머타임 없음
 ERROR_TEXT = "[NASDAQ] 오류: 핵심 데이터 수집 실패 — 로그 확인"
 UNEXPECTED_TEXT = "[NASDAQ] 오류: 실행 중 예외 발생 — 로그 확인"
 HISTORY_YEARS = 7
+
+
+def is_us_trading_day(d: date) -> bool:
+    """미국 증시(NYSE) 개장일인지: 주말·NYSE 휴일(성금요일 포함) 제외."""
+    import holidays
+    return d.weekday() < 5 and d not in holidays.financial_holidays("NYSE", years=d.year)
 
 
 def is_market_closed(as_of: date, run_date_kst: date) -> bool:
@@ -143,6 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="발송 없이 콘솔 출력")
     ap.add_argument("--config", default="config.yaml")
     ap.add_argument("--run-date", help="KST 실행일 지정(YYYY-MM-DD, 테스트용)")
+    ap.add_argument("--force", action="store_true", help="미국 휴장일·주말에도 보냄 (수동 발송)")
     args = ap.parse_args(argv)
 
     if hasattr(sys.stdout, "reconfigure"):
@@ -151,7 +158,12 @@ def main(argv: list[str] | None = None) -> int:
     cfg = load_config(args.config)
     run_date = date.fromisoformat(args.run_date) if args.run_date else datetime.now(KST).date()
     _setup_logging(cfg["paths"]["logs"], run_date)
-    link = cfg["kakao"]["link_url"]
+    # 정기 발송은 미국장이 열리는 날만 (KST 22시 = 미국 동부 같은 날 아침 → 날짜가 같음)
+    if not args.force and not is_us_trading_day(run_date):
+        log.info("skip: %s 미국 휴장일/주말", run_date)
+        print(f"건너뜀: {run_date}은(는) 미국 증시 휴장일입니다 (--force 로 강제 발송)")
+        return 0
+    link = cfg["kakao"].get("page_url") or cfg["kakao"]["link_url"]   # 메시지 버튼 → 차트 페이지
 
     client = None
     if not args.dry_run:
@@ -168,7 +180,7 @@ def main(argv: list[str] | None = None) -> int:
             if client is None:
                 print(t, end="\n\n")
             else:
-                client.send_text(t, link)
+                client.send_text(t, link, button_title="차트 보기")
 
     try:
         # 차트 30년 표시를 위해 오래전부터 받음 (오늘 점수는 최근 5년 창만 쓰므로 결과 동일)
@@ -176,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
         md = collect_all(cfg, start)
         reauth = client.days_until_reauth() if client else None
         report, row = build_report(cfg, md, run_date, reauth)
-        deliver(format_messages(report, cfg["arrow_threshold"], reasons=cfg["kakao"].get("send_reasons", False)))
+        deliver([format_single(report, cfg["arrow_threshold"])])
         log.info("%s: scores=%s missing=%s", "dry-run" if args.dry_run else "sent",
                  report.scores, report.missing)
     except Exception as e:  # 어떤 실패든 로그 + 오류 알림 (조용한 실패 금지)

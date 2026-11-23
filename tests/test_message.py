@@ -242,3 +242,42 @@ def test_page_url_kept_when_message_is_full():
     _, m2 = format_messages(_report(missing=missing, reauth_days=3, nq_change=0.0123, run_date=date(2026, 11, 23),
                                     calibration_stale=True, page_url=URL))
     assert len(m2) <= 200 and m2.splitlines()[-1] == URL
+
+
+def test_single_message_layout():
+    from nasdaq_signal.message import format_single
+    from nasdaq_signal.zone import ZoneInfo
+    r = _report(run_date=date(2026, 11, 23), zone=ZoneInfo("hold", date(2026, 10, 23), 20, -0.145, 49.0),
+                nq_change=0.008, fear_greed=10.0, key_values={"vix": 35.9, "us10y": 5.04, "hy_spread": 3.52},
+                page_url="https://index-report-ten.vercel.app/#")
+    m = format_single(r)
+    assert m == (
+        "[NASDAQ] 11/23(월)\n"
+        "단기 ▲ 상승 55 · 횡보 30 · 하락 15\n"
+        "중기 ─ 상승 38 · 횡보 40 · 하락 22\n"
+        "매수 구간 D+20 (10/23 신호 후 -14.5%)\n"
+        "\n"
+        "10년물 5.04%\n"
+        "HY 3.52%\n"
+        "NASDAQ 선물 +0.8%\n"
+        "Fear & Greed Index 10"
+    )
+    assert "장기" not in m and "http" not in m       # 주소는 메시지 버튼으로
+
+
+def test_single_message_zone_states_and_limit():
+    from nasdaq_signal.message import format_single
+    from nasdaq_signal.zone import ZoneInfo
+    lines = {
+        ZoneInfo("entry", date(2026, 11, 20), 0, None, 23.0): "매수 구간 진입 신호 (중기 +23)",
+        ZoneInfo("exit", date(2026, 10, 26), 30, 0.052, -22.0): "매수 구간 청산 신호 (신호 후 +5.2%)",
+        ZoneInfo("wait", None, 0, None, 5.0): "매수 구간 대기 (중기 +5 / 진입 +20)",
+    }
+    for z, line in lines.items():
+        assert line in format_single(_report(zone=z)).splitlines()
+    full = _report(missing=["dgs10", "t10y2y", "bamlh0a0hym2", "gpr", "rsp", "vix3m", "oil", "fear_greed", "x" * 30],
+                   reauth_days=3, low_confidence=True, calibration_stale=True, nq_change=0.01, fear_greed=10.0,
+                   zone=ZoneInfo("hold", date(2026, 10, 23), 20, -0.145, 49.0))
+    m = format_single(full)
+    assert len(m) <= 200
+    assert "⚠ 재인증 필요: D-3" in m and m.startswith("[NASDAQ]")   # 중요한 경고는 남김

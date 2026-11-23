@@ -1,9 +1,9 @@
-# 매일 09:07(KST) 나스닥 방향성 계산 → 카카오톡 발송 → 차트 페이지·기록 커밋(→ Vercel 자동 배포)
+# 미국장 개장일 22시 전후(KST) 나스닥 방향성 계산 → 카카오톡 1통 발송 → 차트 페이지·기록 커밋(→ Vercel 자동 배포)
 name: daily
 
 on:
   schedule:
-    - cron: "7 0 * * *"        # 00:07 UTC = 09:07 KST (정각 혼잡을 피해 7분)
+    - cron: "55 12 * * 1-5"    # 12:55 UTC = 21:55 KST 월~금 (GitHub 예약은 몇 분 늦게 시작 → 22시 전후 도착). 미국 휴장일은 코드에서 건너뜀
   workflow_dispatch:
     inputs:
       dry_run:
@@ -40,7 +40,7 @@ jobs:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           KAKAO_TOKEN_KEY: ${{ secrets.KAKAO_TOKEN_KEY }}
-        run: python -m nasdaq_signal.main ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: python -m nasdaq_signal.main ${{ github.event_name == 'workflow_dispatch' && '--force' || '' }} ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Commit results
         if: always()

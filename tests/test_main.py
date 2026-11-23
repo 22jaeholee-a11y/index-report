@@ -12,7 +12,7 @@ from nasdaq_signal.kakao import KakaoAuthError
 
 class FakeClient:
     def __init__(self, auth_error=False):
-        self.sent, self.auth_error = [], auth_error
+        self.sent, self.links, self.auth_error = [], [], auth_error
 
     def refresh(self):
         if self.auth_error:
@@ -21,9 +21,10 @@ class FakeClient:
     def days_until_reauth(self):
         return 40
 
-    def send_text(self, text, link_url):
+    def send_text(self, text, link_url, button_title=None):
         assert len(text) <= 200
         self.sent.append(text)
+        self.links.append(link_url)
 
 
 def _cfg_path(tmp_path):
@@ -56,7 +57,8 @@ def _run(tmp_path, monkeypatch, md=None, client=None, extra=()):
         collect = lambda *a, **k: md or _md()  # noqa: E731
     monkeypatch.setattr(m, "collect_all", collect)
     monkeypatch.setattr(m, "make_client", lambda cfg: client)
-    rc = m.main(["--config", _cfg_path(tmp_path), "--run-date", "2026-11-21", *extra])
+    # 내용 검증용 실행: 11/21(토)이라 휴장일 건너뛰기를 --force 로 우회 (건너뛰기 자체는 별도 테스트)
+    rc = m.main(["--config", _cfg_path(tmp_path), "--run-date", "2026-11-21", "--force", *extra])
     return rc, client
 
 
@@ -83,11 +85,11 @@ def test_dry_run_sends_nothing(tmp_path, monkeypatch, capsys):
     assert "[NASDAQ]" in capsys.readouterr().out
 
 
-def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
+def test_normal_run_sends_one_message(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
     assert rc == 0 and _structure_ok(client.sent)
-    assert client.sent[0].startswith("[NASDAQ] 11/21(토) · 11/20 마감")
-    assert len(client.sent) == 2   # 근거(단기적·중기적)는 웹에서만
+    assert client.sent[0].startswith("[NASDAQ] 11/21(토)\n")
+    assert len(client.sent) == 1   # 1통 (근거는 웹에서만)
     assert not any(m.startswith(("[단기적", "[중기적")) for m in client.sent)
 
 
@@ -175,9 +177,8 @@ def test_unpredicted_long_uses_base_rates_and_ignores_long_missing(tmp_path, mon
 
 
 def _structure_ok(sent):
-    """카톡은 요약(나스닥 방향성) → 지표 2통, 모두 200자 이하."""
-    return (len(sent) == 2 and sent[0].startswith("[NASDAQ]") and sent[1].startswith("시장 ")
-            and all(len(m) <= 200 for m in sent))
+    """카톡은 1통: [NASDAQ] 요약 + 지표, 200자 이하."""
+    return len(sent) == 1 and sent[0].startswith("[NASDAQ]") and len(sent[0]) <= 200
 
 
 def test_build_report_includes_all_active_drivers_and_score_position(tmp_path):
@@ -224,7 +225,7 @@ def test_report_has_zone_and_summary_shows_it(tmp_path, monkeypatch):
     assert report.zone is not None and report.zone.status in {"entry", "hold", "exit", "wait"}
     assert report.zone_rule == (cfg["zone"]["entry"], cfg["zone"]["exit"])
     rc, client = _run(tmp_path, monkeypatch)
-    assert any(l.startswith("매수 구간:") for l in client.sent[0].splitlines())
+    assert any(l.startswith("매수 구간 ") for l in client.sent[0].splitlines())
 
 
 def test_dashboard_contains_today_drivers(tmp_path, monkeypatch):
@@ -248,10 +249,10 @@ def test_make_client_uses_encrypted_store_when_key_set(tmp_path, monkeypatch):
     assert isinstance(c.store, EncryptedFileTokenStore) and c.store.path.name == "kakao_tokens.enc"
 
 
-def test_footer_has_page_url_from_config(tmp_path, monkeypatch):
+def test_page_url_is_message_button_not_text(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
-    cfg = yaml.safe_load(open("config.yaml", encoding="utf-8"))
-    assert client.sent[-1].splitlines()[-1] == cfg["kakao"]["page_url"]
+    url = yaml.safe_load(open("config.yaml", encoding="utf-8"))["kakao"]["page_url"]
+    assert client.links == [url] and "http" not in client.sent[0]
 
 
 def test_today_drivers_include_day_changes(tmp_path, monkeypatch):
@@ -267,5 +268,30 @@ def test_main_downloads_from_data_start(tmp_path, monkeypatch):
     starts = []
     monkeypatch.setattr(m, "collect_all", lambda cfg, start, **k: (starts.append(start), _md())[1])
     monkeypatch.setattr(m, "make_client", lambda cfg: FakeClient())
-    m.main(["--config", _cfg_path(tmp_path), "--run-date", "2026-11-21", "--dry-run"])
+    m.main(["--config", _cfg_path(tmp_path), "--run-date", "2026-11-21", "--dry-run", "--force"])
     assert starts == [yaml.safe_load(open("config.yaml", encoding="utf-8"))["data_start"]]
+
+
+def _run_on(tmp_path, monkeypatch, run_date, extra=()):
+    client = FakeClient()
+    monkeypatch.setattr(m, "collect_all", lambda *a, **k: _md())
+    monkeypatch.setattr(m, "make_client", lambda cfg: client)
+    rc = m.main(["--config", _cfg_path(tmp_path), "--run-date", run_date, *extra])
+    return rc, client
+
+
+def test_scheduled_run_skips_us_holidays_and_weekends(tmp_path, monkeypatch):
+    for d in ("2026-11-26", "2026-11-28"):      # 추수감사절, 토요일
+        rc, client = _run_on(tmp_path, monkeypatch, d)
+        assert rc == 0 and client.sent == []
+
+
+def test_trading_day_sends_single_message_with_page_button(tmp_path, monkeypatch):
+    rc, client = _run_on(tmp_path, monkeypatch, "2026-11-23")
+    assert rc == 0 and len(client.sent) == 1 and client.sent[0].startswith("[NASDAQ] 11/23(월)")
+    assert client.links == [yaml.safe_load(open("config.yaml", encoding="utf-8"))["kakao"]["page_url"]]
+
+
+def test_force_sends_on_holiday(tmp_path, monkeypatch):
+    rc, client = _run_on(tmp_path, monkeypatch, "2026-11-26", extra=["--force"])
+    assert rc == 0 and len(client.sent) == 1

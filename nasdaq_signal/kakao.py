@@ -127,12 +127,14 @@ class KakaoClient:
         now = now or datetime.now(timezone.utc)
         return (datetime.fromisoformat(exp) - now).days
 
-    def send_text(self, text: str, link_url: str) -> None:
+    def send_text(self, text: str, link_url: str, button_title: str | None = None) -> None:
         if len(text) > MAX_TEXT:
             raise ValueError(f"message is {len(text)} chars, max {MAX_TEXT}")
         tokens = self.store.load() or {}
         template = {"object_type": "text", "text": text,
                     "link": {"web_url": link_url, "mobile_web_url": link_url}}
+        if button_title:
+            template["button_title"] = button_title
         r = requests.post(MEMO_URL, data={"template_object": json.dumps(template, ensure_ascii=False)},
                           headers={"Authorization": f"Bearer {tokens.get('access_token', '')}"}, timeout=30)
         body = r.json()

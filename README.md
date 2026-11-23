@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File scripts\register_task.ps1   # 매일 09
 0 정상 · 1 핵심 데이터(나스닥 가격) 수집 실패(오류 메시지 발송) · 2 카카오 인증 문제
 
 ## 5. 클라우드 실행 (GitHub Actions) — PC가 꺼져 있어도 매일 발송
-워크플로: `.github/workflows/daily.yml` — 매일 09:07(KST) 실행, 결과(`public/index.html`, `model/`)를 자동 커밋 → Vercel 자동 배포.
+워크플로: `.github/workflows/daily.yml` — 미국장 개장일(월~금, NYSE 휴일 제외) 21:55(KST) 실행 → 22시 전후 카톡 1통, 결과(`public/index.html`, `model/`)를 자동 커밋 → Vercel 자동 배포.
 
 **최초 1회 설정**
 1. 로컬에서 카카오 인증 후 `.venv\Scripts\python -m nasdaq_signal.tokens export`

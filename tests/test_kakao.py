@@ -188,3 +188,11 @@ def test_encrypted_store_accepts_key_missing_padding_or_whitespace(tmp_path):
     EncryptedFileTokenStore(str(tmp_path / "t.enc"), key).save({"refresh_token": "r"})
     for variant in (key.rstrip("="), f"  {key}\n", f'"{key}"'):   # 복사하다 '=' 빠짐, 공백·따옴표 섞임
         assert EncryptedFileTokenStore(str(tmp_path / "t.enc"), variant).load()["refresh_token"] == "r"
+
+
+def test_send_text_uses_button_title(tmp_path, monkeypatch):
+    rec = Recorder(FakeResp({"result_code": 0}))
+    monkeypatch.setattr(kakao.requests, "post", rec)
+    KakaoClient("key", _store(tmp_path)).send_text("hi", "https://x", button_title="차트 보기")
+    obj = json.loads(rec.calls[0]["data"]["template_object"])
+    assert obj["button_title"] == "차트 보기" and obj["link"]["mobile_web_url"] == "https://x"
