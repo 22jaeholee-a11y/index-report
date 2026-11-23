@@ -26,11 +26,14 @@ https://fred.stlouisfed.org/docs/api/api_key.html 에서 발급 → `.env` 의 `
 
 리프레시 토큰은 약 2개월 유효하며 매일 실행 시 자동 갱신됩니다. 만료 14일 전부터 메시지에 재인증 경고가 붙습니다.
 
-## 3. 백테스트 (확률표 생성)
+## 3. 방향 튜닝 + 백테스트 (확률표 생성)
 ```powershell
+.venv\Scripts\python -m nasdaq_signal.tune       # 학습 구간(2010~2017)만으로 지표별 방향/제외 → tuning.yaml
 .venv\Scripts\python -m nasdaq_signal.backtest
 ```
 학습(2010~2017)/검증(2018~) 구간별 적중률·상관을 출력하고, 검증 구간 결과로 `state/calibration.json`을 만듭니다.
+`tune`은 학습 구간을 앞/뒤 절반으로 나눠 두 절반 모두 같은 방향으로 |IC|≥0.03인 지표만 쓰고, 음수면 방향을 뒤집습니다. 검증 구간은 보지 않습니다.
+확률표가 있으면 화살표는 가장 가능성 높은 결과를 따르고, 점수는 '평소 대비 우호도'를 뜻합니다.
 이 파일이 없으면 메시지에 확률이 표시되지 않습니다. 가중치(`config.yaml`)를 바꾸면 다시 실행하세요.
 
 ## 4. 실행

@@ -1,0 +1,111 @@
+generated: '2026-11-23'
+overrides:
+  breadth:
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  credit:
+    long:
+      exclude: true
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  curve:
+    long:
+      direction: -1
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  drawdown_52w:
+    long:
+      direction: -1
+    mid:
+      direction: -1
+    short:
+      direction: -1
+  dxy_ret_60:
+    long:
+      exclude: true
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  gold_ret_20:
+    long:
+      exclude: true
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  gpr:
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  nfci:
+    long:
+      direction: 1
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  oil_ret_20:
+    long:
+      exclude: true
+    mid:
+      exclude: true
+    short:
+      exclude: true
+  ret_20:
+    long:
+      direction: -1
+    mid:
+      direction: -1
+    short:
+      direction: -1
+  ret_60:
+    long:
+      direction: -1
+    mid:
+      direction: -1
+    short:
+      direction: -1
+  sahm:
+    long:
+      direction: 1
+    mid:
+      direction: 1
+    short:
+      exclude: true
+  trend_200:
+    long:
+      direction: -1
+    mid:
+      direction: -1
+    short:
+      direction: -1
+  trend_50:
+    long:
+      direction: -1
+    mid:
+      direction: -1
+    short:
+      direction: -1
+  vix:
+    long:
+      exclude: true
+    mid:
+      exclude: true
+    short:
+      direction: 1
+  vix_term:
+    long:
+      exclude: true
+    mid:
+      direction: 1
+    short:
+      exclude: true
+rule: train halves 2010-01-01..2018-01-01, |IC|>=0.03, same sign
