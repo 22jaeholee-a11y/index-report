@@ -87,9 +87,9 @@ def _relative(score: float, threshold: float) -> str:
 
 def _reason_message(r: "Report", h: str, threshold: float) -> str:
     s = r.scores.get(h)
-    head = f"[{HORIZON_KO[h]} 근거]"
+    head = f"[{HORIZON_KO[h]}적]"
     if not _isnan(s):
-        head += f" 우호도 {_score(s)} ({_relative(s, threshold)})"
+        head += f" {_score(s)} ({_relative(s, threshold)})"
     lines = [head]
     for d in r.drivers.get(h, []):
         if len("\n".join(lines + [describe(d)])) > MAX_LEN:

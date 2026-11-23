@@ -148,7 +148,7 @@ def test_reason_messages_layout_and_length():
     msgs = format_messages(_report(drivers=_drivers()))
     assert len(msgs) == 5
     short = msgs[1].splitlines()
-    assert short[0] == "[단기 근거] 우호도 +32 (평소 대비 강함)"
+    assert short[0] == "[단기적] +32 (평소 대비 강함)"
     assert short[1] == "• VIX 35.9(5년 상위 3%) 공포 높음 → 과거엔 이후 상승 +12점"
     assert short[2] == "• 52주 고점 대비 -8.3%(5년 하위 10%) 고점 대비 큰 낙폭 → 과거엔 이후 상승 +9점"
     assert short[3] == "• 10년물 20일 +31bp(5년 상위 8%) 금리 급등 → 과거엔 이후 하락 -6점"
@@ -177,7 +177,7 @@ def test_unpredicted_horizon_shows_historical_average_and_no_reason_message():
     msgs = format_messages(r)
     assert len(msgs) == 4
     assert msgs[0].splitlines()[3] == "장기 ▲ 상승 76 · 횡보 13 · 하락 11 (역사적 평균, 예측 신호 없음)"
-    assert not any(m.startswith("[장기 근거]") for m in msgs)
+    assert not any(m.startswith("[장기적]") for m in msgs)
 
 
 def test_middle_percentile_is_not_described_as_extreme():

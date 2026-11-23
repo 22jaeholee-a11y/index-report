@@ -87,7 +87,7 @@ def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
     assert rc == 0 and len(client.sent) == 4
     assert client.sent[0].startswith("[나스닥 방향성] 11/21(토) · 11/20 마감")
-    assert [m.splitlines()[0].split("]")[0] for m in client.sent[1:3]] == ["[단기 근거", "[중기 근거"]
+    assert [m.splitlines()[0].split("]")[0] for m in client.sent[1:3]] == ["[단기적", "[중기적"]
     assert "•" in client.sent[1]
 
 
