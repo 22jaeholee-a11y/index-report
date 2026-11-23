@@ -197,9 +197,12 @@ def test_10y_20y_buttons_and_pinch_zoom_code(tmp_path):
     assert "ctrlKey" in html                         # PC: 트랙패드 핀치 / Ctrl+휠
 
 
-def test_mobile_pinch_uses_touch_events_and_blocks_page_zoom():
+def test_mobile_gestures_use_persistent_touch_overlay():
     src = open("nasdaq_signal/dashboard.py", encoding="utf-8").read()
-    assert ".chart { position: relative; touch-action: pan-y; }" in src        # HTML 상자에 확대 막기 (SVG 안쪽은 무시되는 브라우저 있음)
-    assert '"gesturestart"' in src                                            # 아이폰 사파리 페이지 확대 제스처 차단
-    assert 'host.addEventListener("touchstart"' in src and "e.touches.length" in src   # 두 손가락을 한꺼번에 읽음
-    assert "SINGLE_CANCEL" in src                                             # 두 번째 손가락이면 한 손가락 동작 전부 취소
+    assert '<div class="touch" data-hit="1"></div>' in src                 # 다시 그려도 지워지지 않는 터치 판
+    assert 'ov.addEventListener("touchstart"' in src and "e.touches.length" in src
+    assert "Math.hypot(" in src                                              # 두 손가락 거리 = 대각선 실제 거리
+    assert '"gesturestart"' in src                                           # 아이폰 페이지 확대 차단
+    assert "LONG_PRESS = 500" in src                                         # 날짜 선택은 0.5초 꾹 누르기
+    assert "function render(lite)" in src                                    # 움직이는 동안 가볍게 그림
+
