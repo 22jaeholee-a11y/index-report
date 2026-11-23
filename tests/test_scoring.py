@@ -107,3 +107,12 @@ def test_excluded_indicator_is_not_missing_and_not_scored():
     assert "curve" not in macro_active
     expected = (0.5 * (len(macro_active) - 1) - 1.0) / len(macro_active)
     assert sf["long_macro"].iloc[-1] == pytest.approx(expected)
+
+
+def test_score_percentile_from_distribution():
+    from nasdaq_signal.scoring import score_distribution, score_percentile
+    dist = score_distribution(pd.Series(np.arange(-100, 101, dtype=float)))
+    assert len(dist) == 101
+    assert score_percentile(dist, 0) == pytest.approx(0.5, abs=0.01)
+    assert score_percentile(dist, 90) == pytest.approx(0.95, abs=0.01)
+    assert score_percentile(dist, -200) == 0.0 and score_percentile(dist, 200) == 1.0

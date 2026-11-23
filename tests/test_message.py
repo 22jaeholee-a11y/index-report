@@ -185,3 +185,25 @@ def test_middle_percentile_is_not_described_as_extreme():
     line = describe(Driver("us10y_chg_20", 0.08, 0.56, -4.0, -1, False))
     assert "금리 급등" not in line and "평균보다 다소 높음" in line
     assert "금리 급락" in describe(Driver("us10y_chg_20", -0.4, 0.15, 3.0, -1, False))
+
+
+def test_score_position_shown_as_historical_percentile():
+    msgs = format_messages(_report(drivers=_drivers(), score_pct={"short": 0.89, "mid": 0.30, "long": 0.5}))
+    lines = msgs[0].splitlines()
+    assert lines[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15 (과거 상위 11%)"
+    assert lines[2].endswith("(과거 하위 30%)")
+    assert msgs[1].splitlines()[0] == "[단기적] +32 (과거 상위 11%)"
+
+
+def test_all_drivers_shown_split_across_messages():
+    from nasdaq_signal.explain import Driver
+    names = ["trend_200", "drawdown_52w", "breadth", "vix", "gpr", "us10y_chg_20", "us2y_chg_20", "curve"]
+    mid = [Driver(n, 0.05, 0.9, 10.0 - i, 1, False, 10.0) for i, n in enumerate(names)]
+    msgs = format_messages(_report(drivers={"short": [], "mid": mid, "long": []}, score_pct={"mid": 0.99}))
+    mid_msgs = [m for m in msgs if m.startswith("[중기적")]
+    assert len(mid_msgs) >= 2
+    total = len(mid_msgs)
+    assert mid_msgs[0].splitlines()[0] == f"[중기적 1/{total}] +5 (과거 상위 1%)"
+    assert mid_msgs[1].splitlines()[0] == f"[중기적 2/{total}]"
+    assert sum(m.count("•") for m in mid_msgs) == len(names)
+    assert all(len(m) <= 200 for m in msgs)

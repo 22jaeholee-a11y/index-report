@@ -61,3 +61,18 @@ def test_backtest_stores_historical_base_rates(tmp_path):
     base = base_probabilities(cfg["paths"]["calibration"])
     assert base["long"] == (100, 0, 0)
     assert sum(base["short"]) == 100
+
+
+def test_backtest_stores_score_distribution(tmp_path):
+    from nasdaq_signal.scoring import load_score_distributions
+    cfg = load_config(apply_tuning=False)
+    cfg.update(percentile_window=100, percentile_min_periods=20)
+    cfg["paths"]["calibration"] = str(tmp_path / "cal.json")
+    idx = pd.bdate_range("2014-01-01", periods=900)
+    cfg["backtest"] = {"start": str(idx[0].date()), "split": str(idx[400].date()), "bucket": 20}
+    rng = np.random.default_rng(1)
+    frame = pd.DataFrame({"ndx": 100 + rng.normal(0, 1, len(idx)).cumsum(), "vix": 20 + rng.normal(0, 2, len(idx))}, index=idx)
+    run_backtest(cfg, frame)
+    dists = load_score_distributions(cfg["paths"]["calibration"])
+    assert set(dists) >= {"short", "mid"} and len(dists["short"]) == 101
+    assert dists["short"] == sorted(dists["short"])

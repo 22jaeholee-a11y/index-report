@@ -18,7 +18,8 @@ from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
 from .message import Report, format_messages
-from .scoring import Calibration, base_probabilities, score_frame
+from .scoring import (Calibration, base_probabilities, load_score_distributions, score_frame,
+                      score_percentile)
 
 log = logging.getLogger("nasdaq_signal")
 KST = timezone(timedelta(hours=9))  # 한국은 서머타임 없음
@@ -55,7 +56,12 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
     predicted = [h for h in cfg["horizons"] if h not in unpredicted]
     cats = sorted({ind["category"] for ind in cfg["indicators"].values()})
     pct = last_percentiles(raw, cfg)
-    drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h) for h in predicted}
+    # 해당 기간에 쓰이는 지표 전부 (기여 점수 큰 순)
+    drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h, n=len(cfg["indicators"]), min_points=0)
+               for h in predicted}
+    dists = {} if stale else load_score_distributions(cal_path)
+    score_pct = {h: score_percentile(dists[h], scores[h]) for h in predicted
+                 if h in dists and not math.isnan(scores[h])}
     report = Report(
         as_of=md.as_of, run_date=run_date, market_closed=is_market_closed(md.as_of, run_date),
         scores=scores, probs=probs,
@@ -69,6 +75,7 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         calibration_stale=stale,
         drivers=drivers,
         unpredicted=unpredicted,
+        score_pct=score_pct,
     )
     row = {"date": run_date.isoformat(), "as_of": md.as_of.isoformat()}
     row.update({f"raw_{k}": v for k, v in raw.iloc[-1].items()})

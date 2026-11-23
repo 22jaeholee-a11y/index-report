@@ -73,6 +73,23 @@ def _percentages(c: list[int]) -> tuple[int, int, int]:
     return tuple(floors)  # type: ignore[return-value]
 
 
+def score_distribution(scores: pd.Series) -> list[float]:
+    """과거 점수의 0~100 백분위 값 101개 (오름차순)."""
+    return [float(x) for x in np.nanpercentile(scores.dropna().to_numpy(), np.arange(101))]
+
+
+def score_percentile(dist: list[float], score: float) -> float:
+    """오늘 점수가 과거 점수 분포에서 차지하는 위치 (0~1)."""
+    return float(np.interp(score, dist, np.linspace(0, 1, len(dist)), left=0.0, right=1.0))
+
+
+def load_score_distributions(path: str | Path) -> dict[str, list[float]]:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8")).get("_score_dist") or {}
+
+
 def base_probabilities(path: str | Path) -> dict[str, tuple[int, int, int]]:
     p = Path(path)
     if not p.exists():
@@ -111,13 +128,15 @@ class Calibration:
 
     @staticmethod
     def save_all(cals: dict[str, "Calibration"], path: str | Path, meta: dict | None = None,
-                 base: dict[str, list[int]] | None = None) -> None:
+                 base: dict[str, list[int]] | None = None,
+                 score_dists: dict[str, list[float]] | None = None) -> None:
         """base: 기간별 역사적 기본 비율 [up, flat, down, n] (점수와 무관한 전체 표본)."""
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         payload: dict = {h: {str(k): v for k, v in sorted(c.counts.items())} for h, c in cals.items()}
         payload["_bucket"] = next(iter(cals.values())).bucket if cals else 20
         payload["_meta"] = meta
         payload["_base"] = base
+        payload["_score_dist"] = score_dists
         Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
     @staticmethod
@@ -127,9 +146,8 @@ class Calibration:
             return None
         payload = json.loads(p.read_text(encoding="utf-8"))
         bucket = payload.pop("_bucket", 20)
-        payload.pop("_meta", None)
-        payload.pop("_base", None)
-        return {h: Calibration({int(k): v for k, v in d.items()}, bucket) for h, d in payload.items()}
+        return {h: Calibration({int(k): v for k, v in d.items()}, bucket)
+                for h, d in payload.items() if not h.startswith("_")}
 
     @staticmethod
     def load_meta(path: str | Path) -> dict | None:

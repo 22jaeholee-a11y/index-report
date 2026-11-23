@@ -85,9 +85,9 @@ def test_dry_run_sends_nothing(tmp_path, monkeypatch, capsys):
 
 def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
-    assert rc == 0 and len(client.sent) == 4
+    assert rc == 0 and _structure_ok(client.sent)
     assert client.sent[0].startswith("[나스닥 방향성] 11/21(토) · 11/20 마감")
-    assert [m.splitlines()[0].split("]")[0] for m in client.sent[1:3]] == ["[단기적", "[중기적"]
+    assert any(m.startswith("[단기적") for m in client.sent) and any(m.startswith("[중기적") for m in client.sent)
     assert "•" in client.sent[1]
 
 
@@ -98,7 +98,7 @@ def test_core_data_failure_sends_error_message(tmp_path, monkeypatch):
 
 def test_fred_missing_still_sends_with_warning(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch, md=_md(with_fred=False))
-    assert rc == 0 and len(client.sent) == 4
+    assert rc == 0 and _structure_ok(client.sent)
     # 현재 설정에서 FRED는 단기 7.5%·중기 17.5% 비중 → '신뢰도 낮음'(30%) 기준 미만, 누락 표시는 유지
     assert "누락: 10년물" in client.sent[-1]
 
@@ -123,7 +123,7 @@ def test_history_write_failure_does_not_block_messages(tmp_path, monkeypatch):
         raise PermissionError("history.csv is open in Excel")
     monkeypatch.setattr(m, "append_history", locked)
     rc, client = _run(tmp_path, monkeypatch)
-    assert rc == 0 and len(client.sent) == 4
+    assert rc == 0 and _structure_ok(client.sent)
 
 
 def test_dry_run_does_not_write_history(tmp_path, monkeypatch):
@@ -172,3 +172,28 @@ def test_unpredicted_long_uses_base_rates_and_ignores_long_missing(tmp_path, mon
     report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
     assert report.probs["long"] == (76, 13, 11)
     assert report.unpredicted == {"long"}
+
+
+def _structure_ok(sent):
+    """요약 → 단기적·중기적 근거(나눠질 수 있음) → 지표 순서, 모두 200자 이하."""
+    if len(sent) < 4 or not sent[0].startswith("[나스닥 방향성]") or not sent[-1].startswith("시장 "):
+        return False
+    middle = [m.splitlines()[0] for m in sent[1:-1]]
+    return all(h.startswith(("[단기적", "[중기적")) for h in middle) and all(len(m) <= 200 for m in sent)
+
+
+def test_build_report_includes_all_active_drivers_and_score_position(tmp_path):
+    from nasdaq_signal.config import active_indicators
+    from nasdaq_signal.scoring import Calibration, config_fingerprint
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    s = pd.Series(np.linspace(-100, 99, 4000))
+    cals = {h: Calibration.from_backtest(s, pd.Series(["up"] * 4000), 20) for h in ("short", "mid", "long")}
+    Calibration.save_all(cals, cfg["paths"]["calibration"], meta={"config": config_fingerprint(cfg), "missing": []},
+                         score_dists={h: list(np.linspace(-100, 100, 101)) for h in ("short", "mid", "long")})
+    md = _md()
+    report, row = m.build_report(cfg, md, date(2026, 11, 21), None)
+    # 활성 지표 중 오늘 값이 있는 것 전부 (합성 데이터엔 HYG/IEF·2년물·기대인플레가 없어 해당 지표는 값 없음)
+    with_value = [n for n in active_indicators(cfg, "mid") if not np.isnan(row[f"raw_{n}"])]
+    assert len(with_value) >= 8
+    assert sorted(d.name for d in report.drivers["mid"]) == sorted(with_value)
+    assert 0.0 <= report.score_pct["short"] <= 1.0

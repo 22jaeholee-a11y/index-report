@@ -7,7 +7,7 @@ from __future__ import annotations
 import pandas as pd
 
 from .indicators import compute_raw, to_signals
-from .scoring import Calibration, config_fingerprint, score_frame
+from .scoring import Calibration, config_fingerprint, score_distribution, score_frame
 
 
 def forward_labels(ndx: pd.Series, days: int, up: float, down: float) -> pd.Series:
@@ -40,8 +40,11 @@ def run_backtest(cfg: dict, frame: pd.DataFrame, missing: list[str] | tuple = ()
     start, split = pd.Timestamp(bt["start"]), pd.Timestamp(bt["split"])
     ndx = frame["ndx"]
     result: dict = {"train": {}, "test": {}}
-    cals, base = {}, {}
+    cals, base, dists = {}, {}, {}
     for h, spec in cfg["horizons"].items():
+        hs = scores[f"{h}_score"]
+        if hs[hs.index >= start].notna().any():  # 과거 점수 분포 (오늘 점수가 몇 % 위치인지 표시용)
+            dists[h] = score_distribution(hs[hs.index >= start])
         label = forward_labels(ndx, spec["days"], spec["up"], spec["down"])
         hist = label[label.index >= start].dropna()
         base[h] = [int((hist == k).sum()) for k in ("up", "flat", "down")] + [int(len(hist))]
@@ -53,7 +56,8 @@ def run_backtest(cfg: dict, frame: pd.DataFrame, missing: list[str] | tuple = ()
         result["test"][h] = _stats(s[test], label[test], fwd[test], cfg["arrow_threshold"])
         cals[h] = Calibration.from_backtest(s[test], label[test], bt["bucket"])
     Calibration.save_all(cals, cfg["paths"]["calibration"],
-                         meta={"config": config_fingerprint(cfg), "missing": list(missing)}, base=base)
+                         meta={"config": config_fingerprint(cfg), "missing": list(missing)}, base=base,
+                         score_dists=dists)
     return result
 
 

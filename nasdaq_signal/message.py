@@ -37,6 +37,7 @@ class Report:
     calibration_stale: bool = False
     drivers: dict[str, list[Driver]] = field(default_factory=dict)
     unpredicted: set[str] = field(default_factory=set)  # 예측하지 않고 역사적 평균만 보여주는 기간
+    score_pct: dict[str, float] = field(default_factory=dict)  # 오늘 점수의 과거 분포 내 위치 (0~1)
 
 
 def _isnan(v) -> bool:
@@ -85,19 +86,36 @@ def _relative(score: float, threshold: float) -> str:
     return "평소 대비 보통"
 
 
-def _reason_message(r: "Report", h: str, threshold: float) -> str:
+def _position(r: "Report", h: str, threshold: float) -> str:
+    """과거 점수 분포가 있으면 '과거 상위/하위 n%', 없으면 ±threshold 기준 말."""
+    p = r.score_pct.get(h)
     s = r.scores.get(h)
-    head = f"[{HORIZON_KO[h]}적]"
-    if not _isnan(s):
-        head += f" {_score(s)} ({_relative(s, threshold)})"
-    lines = [head]
-    for d in r.drivers.get(h, []):
-        if len("\n".join(lines + [describe(d)])) > MAX_LEN:
-            break
-        lines.append(describe(d))
-    if len(lines) == 1:
-        lines.append("• 뚜렷한 근거 지표 없음 (신호 약함)")
-    return "\n".join(lines)
+    if p is None or _isnan(p):
+        return _relative(s, threshold)
+    if p >= 0.5:
+        return f"과거 상위 {max(1, round((1 - p) * 100))}%"
+    return f"과거 하위 {max(1, round(p * 100))}%"
+
+
+def _reason_messages(r: "Report", h: str, threshold: float) -> list[str]:
+    """모든 근거 지표를 표시. 200자를 넘으면 '[중기적 1/n]'처럼 나눠 보냄."""
+    s = r.scores.get(h)
+    summary = "" if _isnan(s) else f" {_score(s)} ({_position(r, h, threshold)})"
+    items = [describe(d) for d in r.drivers.get(h, [])] or ["• 뚜렷한 근거 지표 없음 (신호 약함)"]
+    head_room = len(f"[{HORIZON_KO[h]}적 9/9]") + len(summary) + 1  # 첫 메시지 제목 최대 길이
+    chunks: list[list[str]] = [[]]
+    for it in items:
+        budget = MAX_LEN - (head_room if len(chunks) == 1 else len(f"[{HORIZON_KO[h]}적 9/9]") + 1)
+        if chunks[-1] and len("\n".join(chunks[-1] + [it])) > budget:
+            chunks.append([])
+        chunks[-1].append(it)
+    n = len(chunks)
+    out = []
+    for i, chunk in enumerate(chunks, 1):
+        tag = f"[{HORIZON_KO[h]}적]" if n == 1 else f"[{HORIZON_KO[h]}적 {i}/{n}]"
+        head = tag + (summary if i == 1 else "")
+        out.append("\n".join([head] + chunk))
+    return out
 
 
 def _message_one(r: Report, threshold: float) -> str:
@@ -119,7 +137,7 @@ def _message_one(r: Report, threshold: float) -> str:
         p = r.probs.get(h)
         if p:  # 화살표는 확률을 따르므로 부호 있는 점수 대신 '평소 대비'를 말로 표시
             line = (f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]}"
-                    f" ({_relative(s, threshold)})")
+                    f" ({_position(r, h, threshold)})")
         else:
             line = f"{ko} {arrow(s, threshold)} {_score(s)}"
         lines.append(line)
@@ -165,5 +183,7 @@ def _message_two(r: Report) -> str:
 def format_messages(report: Report, arrow_threshold: float = 20) -> list[str]:
     msgs = [_message_one(report, arrow_threshold)]
     if report.drivers:
-        msgs += [_reason_message(report, h, arrow_threshold) for h in HORIZON_KO if h not in report.unpredicted]
+        for h in HORIZON_KO:
+            if h not in report.unpredicted:
+                msgs += _reason_messages(report, h, arrow_threshold)
     return msgs + [_message_two(report)]
