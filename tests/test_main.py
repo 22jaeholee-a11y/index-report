@@ -218,3 +218,12 @@ def test_inactive_category_not_shown(tmp_path):
         cfg["indicators"][n]["horizons"] = {h: {"exclude": True} for h in ("short", "mid", "long")}
     report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
     assert "geo" not in report.categories and "market" in report.categories
+
+
+def test_report_has_zone_and_summary_shows_it(tmp_path, monkeypatch):
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
+    assert report.zone is not None and report.zone.status in {"entry", "hold", "exit", "wait"}
+    assert report.zone_rule == (cfg["zone"]["entry"], cfg["zone"]["exit"])
+    rc, client = _run(tmp_path, monkeypatch)
+    assert any(l.startswith("매수 구간:") for l in client.sent[0].splitlines())

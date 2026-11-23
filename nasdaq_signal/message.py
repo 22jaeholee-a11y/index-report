@@ -7,6 +7,7 @@ from datetime import date
 
 from .explain import Driver, describe
 from .scoring import arrow
+from .zone import ZoneInfo
 
 MAX_LEN = 200
 WEEKDAYS = "월화수목금토일"
@@ -38,6 +39,8 @@ class Report:
     drivers: dict[str, list[Driver]] = field(default_factory=dict)
     unpredicted: set[str] = field(default_factory=set)  # 예측하지 않고 역사적 평균만 보여주는 기간
     score_pct: dict[str, float] = field(default_factory=dict)  # 오늘 점수의 과거 분포 내 위치 (0~1)
+    zone: ZoneInfo | None = None                    # 매수 구간 상태
+    zone_rule: tuple[float, float] = (20, -20)      # (진입, 청산) 중기 점수 기준
 
 
 def _isnan(v) -> bool:
@@ -141,9 +144,22 @@ def _message_one(r: Report, threshold: float) -> str:
         else:
             line = f"{ko} {arrow(s, threshold)} {_score(s)}"
         lines.append(line)
+    if r.zone is not None:
+        lines.append(_zone_line(r.zone, r.zone_rule))
     if r.low_confidence:
         lines.append("⚠ 신뢰도 낮음(데이터 누락)")
     return "\n".join(lines)
+
+
+def _zone_line(z: ZoneInfo, rule: tuple[float, float]) -> str:
+    entry, exit_ = rule
+    if z.status == "entry":
+        return f"매수 구간: 진입 신호 (중기 {_score(z.score)} ≥ {_score(entry)})"
+    if z.status == "hold":
+        return f"매수 구간: 유지 D+{z.days} ({_md(z.since)} 신호 후 {z.ret:+.1%})"
+    if z.status == "exit":
+        return f"매수 구간: 청산 신호 (중기 {_score(z.score)} < {_score(exit_)}, 신호 후 {z.ret:+.1%})"
+    return f"매수 구간: 대기 (중기 {_score(z.score)}, 진입 기준 {_score(entry)})"
 
 
 def _missing_line(missing: list[str]) -> str:

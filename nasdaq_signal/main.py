@@ -19,6 +19,7 @@ from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
 from .message import Report, format_messages
+from .zone import zone_info
 from .scoring import (Calibration, base_probabilities, load_score_distributions, score_frame,
                       score_percentile)
 
@@ -40,7 +41,10 @@ def _last(frame: pd.DataFrame, col: str) -> float:
 def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | None) -> tuple[Report, dict]:
     raw = mask_missing(compute_raw(md.frame), md.missing)
     signals = to_signals(raw, cfg)
-    last = score_frame(signals, cfg).iloc[-1]
+    sf = score_frame(signals, cfg)
+    last = sf.iloc[-1]
+    zone_rule = (cfg["zone"]["entry"], cfg["zone"]["exit"])
+    zone = zone_info(sf["mid_score"], md.frame["ndx"], *zone_rule)
     cal_path = cfg["paths"]["calibration"]
     stale = not Calibration.is_valid_for(Calibration.load_meta(cal_path), cfg)
     cals = {} if stale else (Calibration.load_all(cal_path) or {})
@@ -79,6 +83,8 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         drivers=drivers,
         unpredicted=unpredicted,
         score_pct=score_pct,
+        zone=zone,
+        zone_rule=zone_rule,
     )
     row = {"date": run_date.isoformat(), "as_of": md.as_of.isoformat()}
     row.update({f"raw_{k}": v for k, v in raw.iloc[-1].items()})

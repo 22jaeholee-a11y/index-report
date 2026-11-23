@@ -14,6 +14,7 @@ import pandas as pd
 from .data import MarketData
 from .indicators import compute_raw, mask_missing, to_signals
 from .scoring import Calibration, score_frame
+from .zone import zone_states
 
 CATEGORIES = ("market", "sentiment", "geo", "macro")
 
@@ -45,30 +46,35 @@ def build_history(cfg: dict, md: MarketData, days: int = 750) -> pd.DataFrame:
     if hist.exists():
         live_dates = set(pd.read_csv(hist, encoding="utf-8-sig", dtype=str).get("as_of", pd.Series(dtype=str)).dropna())
     out["live"] = [d.date().isoformat() in live_dates for d in out.index]
+    z = cfg.get("zone", {"entry": 20, "exit": -20})
+    out["zone"] = zone_states(sf["mid_score"], z["entry"], z["exit"]).astype(bool)  # 전체 기간으로 계산 후 자름
     return out.iloc[-days:]
 
 
 def _rows(h: pd.DataFrame) -> list[dict]:
     rows = []
     for d, r in h.iterrows():
-        row = {"date": d.date().isoformat(), "live": bool(r["live"])}
+        row = {"date": d.date().isoformat(), "live": bool(r["live"]), "zone": bool(r["zone"])}
         for k, v in r.items():
-            if k == "live":
+            if k in ("live", "zone"):
                 continue
             row[k] = None if pd.isna(v) else round(float(v), 4)
         rows.append(row)
     return rows
 
 
-def render_html(h: pd.DataFrame, generated: str) -> str:
+def render_html(h: pd.DataFrame, generated: str, zone_rule: tuple[float, float] = (20, -20)) -> str:
     payload = json.dumps({"generated": generated, "rows": _rows(h)}, ensure_ascii=False)
-    return _TEMPLATE.replace("__DATA__", payload.replace("</", "<\\/"))
+    entry, exit_ = zone_rule
+    return (_TEMPLATE.replace("__ENTRY__", f"{entry:+.0f}").replace("__EXIT__", f"{exit_:+.0f}")
+            .replace("__DATA__", payload.replace("</", "<\\/")))
 
 
 def write_dashboard(cfg: dict, md: MarketData, generated: str) -> Path:
     path = Path(cfg["paths"].get("dashboard", Path(cfg["paths"]["state"]) / "dashboard.html"))
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_html(build_history(cfg, md), generated), encoding="utf-8")
+    z = cfg.get("zone", {"entry": 20, "exit": -20})
+    path.write_text(render_html(build_history(cfg, md), generated, (z["entry"], z["exit"])), encoding="utf-8")
     return path
 
 
@@ -103,7 +109,7 @@ _TEMPLATE = r"""<!doctype html>
   color-scheme: light;
   --surface-0: #f6f6f4; --surface-1: #fcfcfb; --border: #e4e3df;
   --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
-  --grid: #ecebe7; --axis: #c9c8c2; --ref: #9a9993; --live: #f0efec;
+  --grid: #ecebe7; --axis: #c9c8c2; --ref: #9a9993; --live: #e4e3df; --zone: #e3f1e6;
   --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
 }
 @media (prefers-color-scheme: dark) {
@@ -111,7 +117,7 @@ _TEMPLATE = r"""<!doctype html>
     color-scheme: dark;
     --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2c;
     --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8e8d86;
-    --grid: #262624; --axis: #45443f; --ref: #6f6e68; --live: #262624;
+    --grid: #262624; --axis: #45443f; --ref: #6f6e68; --live: #34342f; --zone: #1d2e22;
     --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
   }
 }
@@ -152,6 +158,8 @@ th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--bor
 th:first-child, td:first-child { text-align: left; }
 th { color: var(--text-secondary); font-weight: 600; }
 .note { color: var(--text-muted); font-size: 12px; margin-top: 18px; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
+.sw.zone { background: var(--zone); border: 1px solid var(--axis); }
 </style>
 </head>
 <body>
@@ -162,9 +170,9 @@ th { color: var(--text-secondary); font-weight: 600; }
     <button data-n="21">1개월</button><button data-n="63">3개월</button><button data-n="126" aria-pressed="true">6개월</button>
     <button data-n="252">1년</button><button data-n="0">전체</button>
   </div>
-  <section class="card"><h2>나스닥100 지수</h2><p>일별 종가</p><div class="chart" id="c-ndx"></div></section>
-  <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준</p><div class="chart" id="c-score"></div></section>
-  <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 과거(2018~) 실제 결과로 계산 · 50% 기준선</p><div class="chart" id="c-up"></div></section>
+  <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
+  <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
+  <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 2005년 이후 실제 결과로 계산 · 50% 기준선</p><div class="chart" id="c-up"></div></section>
   <section class="card"><h2>카테고리 점수 (중기)</h2><p>-1 ~ +1 · 카테고리 안 지표 신호의 평균</p><div class="chart" id="c-cat"></div></section>
   <details><summary>표로 보기 (최근 30일)</summary><div id="table"></div></details>
   <p class="note">음영 구간은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
@@ -185,8 +193,8 @@ th { color: var(--text-secondary); font-weight: 600; }
     `${last.date} 마감 기준 · 생성 ${DATA.generated}`;
 
   const CHARTS = [
-    { id: "c-ndx", series: [{ key: "ndx", name: "나스닥100", color: "--s1" }], fmt: v => v.toLocaleString("ko-KR", { maximumFractionDigits: 0 }) },
-    { id: "c-score", domain: [-100, 100], ticks: [-100, -50, 0, 50, 100], ref: 0,
+    { id: "c-ndx", zone: true, series: [{ key: "ndx", name: "나스닥100", color: "--s1" }], fmt: v => v.toLocaleString("ko-KR", { maximumFractionDigits: 0 }) },
+    { id: "c-score", zone: true, domain: [-100, 100], ticks: [-100, -50, 0, 50, 100], ref: 0,
       series: [{ key: "short_score", name: "단기", color: "--s1" }, { key: "mid_score", name: "중기", color: "--s2" }],
       fmt: v => (v > 0 ? "+" : "") + Math.round(v) },
     { id: "c-up", domain: [0, 100], ticks: [0, 25, 50, 75, 100], ref: 50,
@@ -226,6 +234,19 @@ th { color: var(--text-secondary); font-weight: 600; }
     const x = i => m.l + (rows.length <= 1 ? iw / 2 : (i / (rows.length - 1)) * iw);
     const y = v => m.t + (1 - (v - lo) / (hi - lo)) * ih;
 
+    // 매수 구간 배경 (연속 구간을 하나의 띠로)
+    if (cfg.zone) {
+      const step = iw / Math.max(rows.length - 1, 1);
+      let st = -1;
+      rows.forEach((r, i) => {
+        if (r.zone && st < 0) st = i;
+        if ((!r.zone || i === rows.length - 1) && st >= 0) {
+          const end = r.zone ? i : i - 1;
+          el("rect", { x: x(st) - step / 2, y: m.t, width: Math.max(x(end) - x(st) + step, 2), height: ih, fill: css("--zone") }, svg);
+          st = -1;
+        }
+      });
+    }
     // 실제 발송된 날 음영
     rows.forEach((r, i) => { if (r.live) {
       const w = Math.max(iw / Math.max(rows.length - 1, 1), 2);
@@ -273,7 +294,7 @@ th { color: var(--text-secondary); font-weight: 600; }
       cfg.series.forEach((s, k) => { const v = r[s.key];
         if (v == null) { dots[k].setAttribute("visibility", "hidden"); return; }
         dots[k].setAttribute("cx", x(i)); dots[k].setAttribute("cy", y(v)); dots[k].setAttribute("visibility", "visible"); });
-      tip.innerHTML = `<b>${r.date}${r.live ? " · 발송" : ""}</b>` + cfg.series.map(s =>
+      tip.innerHTML = `<b>${r.date}${r.live ? " · 발송" : ""}${cfg.zone && r.zone ? " · 매수 구간" : ""}</b>` + cfg.series.map(s =>
         `<span><i style="background:${css(s.color)}"></i>${s.name} <em>${r[s.key] == null ? "-" : cfg.fmt(r[s.key])}</em></span>`).join("");
       tip.style.display = "block";
       const hx = x(i) * (box.width / W), tw = tip.offsetWidth;

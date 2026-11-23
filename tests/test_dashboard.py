@@ -61,3 +61,11 @@ def test_render_html_embeds_data_and_is_self_contained(tmp_path):
     assert len(payload["rows"]) == 60 and payload["rows"][-1]["date"] == "2026-11-20"
     assert "<script src=" not in html          # 외부 스크립트 없음 (로컬 파일로도 동작)
     assert "prefers-color-scheme: dark" in html
+
+
+def test_history_marks_buy_zone(tmp_path):
+    cfg = _cfg(tmp_path)
+    h = build_history(cfg, _md(), days=200)
+    assert "zone" in h.columns and h["zone"].dtype == bool
+    html = render_html(h, generated="x")
+    assert '"zone":' in html and "매수 구간" in html

@@ -213,3 +213,17 @@ def test_footer_skips_categories_not_in_report():
     lines = m2.splitlines()
     assert lines[:3] == ["시장 +0.8", "심리 +0.9", "매크로 +0.0"]
     assert not any(l.startswith("지정학") for l in lines)
+
+
+def test_zone_line_in_summary():
+    from nasdaq_signal.zone import ZoneInfo
+    from datetime import date as d
+    cases = {
+        ZoneInfo("entry", d(2026, 11, 20), 0, None, 23.0): "매수 구간: 진입 신호 (중기 +23 ≥ +20)",
+        ZoneInfo("hold", d(2026, 10, 26), 19, -0.145, 49.0): "매수 구간: 유지 D+19 (10/26 신호 후 -14.5%)",
+        ZoneInfo("exit", d(2026, 10, 26), 30, 0.052, -22.0): "매수 구간: 청산 신호 (중기 -22 < -20, 신호 후 +5.2%)",
+        ZoneInfo("wait", None, 0, None, 5.0): "매수 구간: 대기 (중기 +5, 진입 기준 +20)",
+    }
+    for z, line in cases.items():
+        m1, *_ = format_messages(_report(zone=z, zone_rule=(20, -20)))
+        assert line in m1.splitlines()
