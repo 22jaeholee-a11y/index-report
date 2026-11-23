@@ -37,6 +37,7 @@ def score_frame(signals: dict[str, pd.DataFrame], cfg: dict,
         weighted = pd.Series(0.0, index=sig.index)
         wsum = pd.Series(0.0, index=sig.index)
         missing = pd.Series(0.0, index=sig.index)
+        used_w = 0.0   # 이 기간에 실제로 쓰는 카테고리 비중 합 (누락 비율의 분모)
         for cat, names in cats.items():
             w = cfg["category_weights"][cat][h]
             if not names:  # 이 기간에 쓰는 지표가 없는 카테고리 → 가중치 재분배, 누락 아님
@@ -49,6 +50,9 @@ def score_frame(signals: dict[str, pd.DataFrame], cfg: dict,
             weighted += (cat_score.fillna(0) * w)
             wsum += valid * w
             missing += block.isna().mean(axis=1) * w
+            used_w += w
+        if used_w > 0:   # 쓰이지 않는 카테고리 비중까지 분모에 넣으면 누락이 과소평가됨 (예: 단기 VIX 누락)
+            missing = missing / used_w
         score = (weighted / wsum.replace(0, np.nan)) * 100
         adj = float(np.clip(ai_adjustment.get(h, 0.0), -cap, cap))
         cols[f"{h}_score"] = (score + adj).clip(-100, 100)

@@ -33,7 +33,7 @@ def test_missing_category_renormalizes():
     cfg, sig = _signals(0.5, nan_category="macro")
     sf = score_frame(sig, cfg)
     assert sf["long_score"].iloc[-1] == pytest.approx(50)
-    assert sf["long_missing"].iloc[-1] == pytest.approx(0.60)
+    assert sf["long_missing"].iloc[-1] == pytest.approx(0.60 / _used_weight(cfg, "long"))
     assert np.isnan(sf["long_macro"].iloc[-1])
 
 
@@ -43,7 +43,7 @@ def test_partial_missing_inside_category_counts_fraction():
         sig[h]["dxy_ret_60"] = np.nan  # 활성 macro 지표 중 1개
     n_macro = len([k for k in active_indicators(cfg, "long") if cfg["indicators"][k]["category"] == "macro"])
     sf = score_frame(sig, cfg)
-    assert sf["long_missing"].iloc[-1] == pytest.approx(0.60 / n_macro)
+    assert sf["long_missing"].iloc[-1] == pytest.approx(0.60 / n_macro / _used_weight(cfg, "long"))
     assert sf["long_score"].iloc[-1] == pytest.approx(50)
 
 
@@ -116,3 +116,22 @@ def test_score_percentile_from_distribution():
     assert score_percentile(dist, 0) == pytest.approx(0.5, abs=0.01)
     assert score_percentile(dist, 90) == pytest.approx(0.95, abs=0.01)
     assert score_percentile(dist, -200) == 0.0 and score_percentile(dist, 200) == 1.0
+
+
+def test_missing_ratio_counts_only_categories_used_in_horizon():
+    cfg, sig = _signals(0.5)
+    # 단기: 심리(VIX)와 매크로만 쓰는 상황 재현 — 시장·지정학 지표 전부 제외
+    for n, ind in cfg["indicators"].items():
+        if ind["category"] in ("market", "geo") or n == "vix_term":
+            ind.setdefault("horizons", {})["short"] = {"exclude": True}
+    sig["short"] = sig["short"][[n for n in active_indicators(cfg, "short")]]
+    sig["short"]["vix"] = np.nan               # VIX만 누락
+    sf = score_frame(sig, cfg)
+    # 쓰이는 카테고리 비중: 심리 0.30 + 매크로 0.15 = 0.45 → VIX 누락 = 0.30/0.45
+    assert sf["short_missing"].iloc[-1] == pytest.approx(0.30 / 0.45)
+
+
+def _used_weight(cfg, h):
+    """그 기간에 쓰이는 지표가 하나라도 있는 카테고리의 비중 합."""
+    cats = {cfg["indicators"][n]["category"] for n in active_indicators(cfg, h)}
+    return sum(cfg["category_weights"][c][h] for c in cats)

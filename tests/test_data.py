@@ -50,6 +50,15 @@ def test_fetch_prices_renames_and_fills_missing_tickers(monkeypatch):
     idx = pd.bdate_range("2024-01-01", periods=3)
     close = pd.DataFrame({"^NDX": [1.0, 2.0, 3.0], "SPY": [1.0, 1.0, 1.0]}, index=idx)
     monkeypatch.setattr(prices.yf, "download", lambda *a, **k: pd.concat({"Close": close}, axis=1))
+
+    class NoData:   # 개별 재시도도 실패하는 상황 (네트워크 없이)
+        def __init__(self, t):
+            pass
+
+        def history(self, **k):
+            return pd.DataFrame()
+    monkeypatch.setattr(prices.yf, "Ticker", NoData)
+    monkeypatch.setattr(prices, "RETRY_SLEEP", 0)
     df = prices.fetch_prices("2024-01-01")
     assert set(df.columns) == set(prices.PRICE_TICKERS)
     assert df["ndx"].iloc[-1] == 3.0
@@ -124,3 +133,43 @@ def test_fred_failure_is_per_series_and_does_not_log_key(monkeypatch, caplog):
     assert "dgs10" in df.columns and "nfci" not in df.columns
     assert "SECRETKEY123" not in caplog.text
     assert "NFCI" in caplog.text
+
+
+def test_fetch_prices_retries_empty_ticker_individually(monkeypatch):
+    idx = pd.bdate_range("2024-01-01", periods=3)
+    batch = pd.DataFrame({t: [1.0, 2.0, 3.0] for t in prices.PRICE_TICKERS.values()}, index=idx)
+    batch["^VIX"] = np.nan                                   # 일괄 다운로드에서 VIX만 비어서 옴
+    monkeypatch.setattr(prices.yf, "download", lambda *a, **k: pd.concat({"Close": batch}, axis=1))
+    calls = []
+
+    class FakeTicker:
+        def __init__(self, t):
+            self.t = t
+
+        def history(self, start=None, auto_adjust=True):
+            calls.append(self.t)
+            if len(calls) == 1:
+                raise RuntimeError("rate limited")             # 첫 재시도 실패 → 다시 시도
+            return pd.DataFrame({"Close": [20.0, 21.0, 22.0]}, index=idx.tz_localize("America/Chicago"))
+    monkeypatch.setattr(prices.yf, "Ticker", FakeTicker)
+    monkeypatch.setattr(prices, "RETRY_SLEEP", 0)
+    df = prices.fetch_prices("2024-01-01")
+    assert calls == ["^VIX", "^VIX"]
+    assert df["vix"].iloc[-1] == 22.0
+
+
+def test_fetch_prices_retries_when_latest_value_missing(monkeypatch):
+    idx = pd.bdate_range("2024-01-01", periods=3)
+    batch = pd.DataFrame({t: [1.0, 2.0, 3.0] for t in prices.PRICE_TICKERS.values()}, index=idx)
+    batch.loc[idx[-1], "^VIX"] = np.nan                      # 마지막 날만 비어서 옴
+    monkeypatch.setattr(prices.yf, "download", lambda *a, **k: pd.concat({"Close": batch}, axis=1))
+
+    class T:
+        def __init__(self, t):
+            self.t = t
+
+        def history(self, **k):
+            return pd.DataFrame({"Close": [20.0, 21.0, 22.0]}, index=idx)
+    monkeypatch.setattr(prices.yf, "Ticker", T)
+    monkeypatch.setattr(prices, "RETRY_SLEEP", 0)
+    assert prices.fetch_prices("2024-01-01")["vix"].iloc[-1] == 22.0
