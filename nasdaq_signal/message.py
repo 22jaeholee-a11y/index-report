@@ -100,6 +100,9 @@ def _position(r: "Report", h: str, threshold: float) -> str:
     return f"하위 {max(1, round(p * 100))}%"
 
 
+position_text = _position  # 웹 페이지에서도 같은 표기 사용
+
+
 def _reason_messages(r: "Report", h: str, threshold: float) -> list[str]:
     """모든 근거 지표를 표시. 200자를 넘으면 '[중기적 1/n]'처럼 나눠 보냄."""
     s = r.scores.get(h)

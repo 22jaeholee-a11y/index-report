@@ -61,3 +61,20 @@ def test_describe_shows_points_over_max():
     line = describe(Driver("vix", 35.9, 0.99, 66.2, 1, False, 66.7))
     assert line == "• VIX 35.9(5년 상위 1%) → +66/67점"
     assert describe(Driver("us2y_chg_20", 0.11, 0.59, -3.0, -1, False, 16.7)) == "• 2년물 20일 +11bp(5년 상위 41%) → -3/17점"
+
+
+def test_every_indicator_has_help_text():
+    from nasdaq_signal.explain import INDICATOR_HELP
+    cfg = load_config(apply_tuning=False)
+    assert set(cfg["indicators"]) <= set(INDICATOR_HELP)
+
+
+def test_driver_view_explains_learned_direction():
+    from nasdaq_signal.explain import driver_view
+    v = driver_view(Driver("vix", 35.9, 0.99, 22.0, 1, True, 24.0))
+    assert v["label"] == "VIX" and v["value"] == "35.9" and v["position"] == "5년 상위 1%"
+    assert v["points"] == 22.0 and v["max"] == 24.0
+    assert "변동성" in v["what"]
+    assert "높을수록 이후 상승" in v["learned"] and "극단" in v["learned"]
+    v2 = driver_view(Driver("us2y_chg_20", 0.11, 0.59, -2.0, -1, False, 14.0))
+    assert "높을수록 이후 하락" in v2["learned"] and "극단" not in v2["learned"]

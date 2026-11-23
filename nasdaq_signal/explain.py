@@ -106,3 +106,47 @@ def describe(d: Driver) -> str:
         pos = f"(5년 하위 {max(1, round(d.pct * 100))}%)"
     cap = "" if math.isnan(d.max_points) else f"/{d.max_points:.0f}"
     return f"• {value}{pos} → {d.points:+.0f}{cap}점"
+
+
+# 지표 이름 → (표시 이름, 무엇을 재는지)
+INDICATOR_HELP: dict[str, tuple[str, str]] = {
+    "trend_50": ("50일선 대비", "나스닥100이 최근 50거래일 평균보다 얼마나 위·아래에 있는지 (단기 추세·과열)"),
+    "trend_200": ("200일선 대비", "나스닥100이 최근 200거래일 평균보다 얼마나 위·아래에 있는지 (장기 추세)"),
+    "ret_20": ("20일 수익률", "최근 한 달간 나스닥100 등락률"),
+    "ret_60": ("60일 수익률", "최근 석 달간 나스닥100 등락률"),
+    "drawdown_52w": ("52주 고점 대비", "최근 1년 최고점에서 얼마나 떨어져 있는지 (0%면 신고가)"),
+    "breadth": ("시장 폭", "동일가중 S&P500(RSP)이 시총가중(SPY)보다 60일간 얼마나 강했는지 — 상승이 넓게 퍼졌는지, 대형주에 쏠렸는지"),
+    "vix": ("VIX", "S&P500 옵션 가격에 반영된 향후 30일 예상 변동성 — '공포 지수'"),
+    "vix_term": ("VIX/VIX3M", "1개월 변동성 ÷ 3개월 변동성 — 1보다 크면 당장의 공포가 더 큰 투매 국면"),
+    "gpr": ("지정학위험지수", "주요 신문의 전쟁·테러·군사 긴장 기사 빈도 (30일 평균)"),
+    "oil_ret_20": ("유가 20일", "WTI 원유 선물의 한 달 등락률"),
+    "gold_ret_20": ("금 20일", "금 선물의 한 달 등락률 (안전자산 선호)"),
+    "us10y_chg_20": ("10년물 금리 변화", "미국 10년 국채 금리의 한 달 변화 — 오르면 미래 이익의 현재가치가 줄어 기술주에 부담"),
+    "us2y_chg_20": ("2년물 금리 변화", "미국 2년 국채 금리의 한 달 변화 — 연준 기준금리 기대를 가장 잘 반영"),
+    "breakeven_chg_20": ("기대인플레이션 변화", "시장이 예상하는 향후 10년 물가상승률의 한 달 변화"),
+    "curve": ("장단기 금리차", "10년물 − 2년물 금리 — 마이너스(역전)면 전통적인 경기침체 신호"),
+    "credit": ("신용 위험선호", "하이일드 회사채 ETF(HYG) ÷ 국채 ETF(IEF)의 60일 변화 — 위험한 회사채에 돈이 몰리는지"),
+    "dxy_ret_60": ("달러 지수", "달러 가치의 석 달 등락률 — 강달러는 해외 매출 큰 빅테크에 부담"),
+    "nfci": ("금융여건지수", "시카고 연준 금융여건지수 — 플러스면 평균보다 긴축적"),
+    "sahm": ("삼 법칙", "실업률 3개월 평균이 지난 1년 최저보다 얼마나 올랐는지 — 0.5 이상이면 침체 신호"),
+}
+
+
+def driver_view(d: Driver) -> dict:
+    """웹 표시용: 지표 설명 + 학습된 방향 + 오늘 값."""
+    label, what = INDICATOR_HELP.get(d.name, (d.name, ""))
+    fmt = INDICATOR_TEXT.get(d.name)
+    full = fmt(d.value) if fmt and not math.isnan(d.value) else "-"
+    value = full[len(label):].strip() if full.startswith(label) else full.split(" ")[-1]
+    if math.isnan(d.pct):
+        position = "-"
+    elif d.pct >= 0.5:
+        position = f"5년 상위 {max(1, round((1 - d.pct) * 100))}%"
+    else:
+        position = f"5년 하위 {max(1, round(d.pct * 100))}%"
+    learned = f"과거 데이터상 값이 높을수록 이후 {'상승' if d.eff_sign > 0 else '하락'}"
+    if d.contrarian:
+        learned += " (5년 상·하위 10% 극단 구간에서만 작동)"
+    return {"name": d.name, "label": label, "what": what, "learned": learned, "value": value,
+            "position": position, "points": round(d.points, 1),
+            "max": None if math.isnan(d.max_points) else round(d.max_points, 1)}

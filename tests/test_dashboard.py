@@ -69,3 +69,16 @@ def test_history_marks_buy_zone(tmp_path):
     assert "zone" in h.columns and h["zone"].dtype == bool
     html = render_html(h, generated="x")
     assert '"zone":' in html and "매수 구간" in html
+
+
+def test_render_includes_today_drivers_section(tmp_path):
+    from nasdaq_signal.explain import Driver
+    cfg = _cfg(tmp_path)
+    h = build_history(cfg, _md(), days=30)
+    today = {"short": {"title": "단기적", "score": 61.0, "position": "상위 11%",
+                       "drivers": [Driver("vix", 35.9, 0.99, 66.0, 1, False, 67.0)]}}
+    html = render_html(h, generated="x", today=today)
+    payload = json.loads(re.search(r'<script id="data" type="application/json">(.*?)</script>', html, re.S).group(1))
+    d = payload["today"]["short"]
+    assert d["score"] == 61.0 and d["drivers"][0]["label"] == "VIX" and d["drivers"][0]["max"] == 67.0
+    assert "오늘의 근거" in html

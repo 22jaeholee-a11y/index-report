@@ -18,7 +18,7 @@ from .dashboard import write_dashboard
 from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
-from .message import Report, format_messages
+from .message import HORIZON_KO, Report, format_messages, position_text
 from .zone import zone_info
 from .scoring import (Calibration, base_probabilities, load_score_distributions, score_frame,
                       score_percentile)
@@ -92,6 +92,13 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
     row.update({"fear_greed": report.fear_greed, "nq_change": report.nq_change,
                 "missing": ";".join(md.missing)})
     return report, row
+
+
+def today_drivers(report: Report, cfg: dict) -> dict:
+    """웹 '오늘의 근거' 섹션용: 예측하는 기간별 점수·위치·근거 지표."""
+    return {h: {"title": f"{HORIZON_KO[h]}적", "score": report.scores[h],
+                "position": position_text(report, h, cfg["arrow_threshold"]), "drivers": report.drivers[h]}
+            for h in report.drivers}
 
 
 def append_history(path: str, row: dict) -> None:
@@ -175,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             log.exception("history write failed")
     try:  # 차트 페이지 생성 실패도 발송을 막지 않음 (발송 기록 반영 위해 history 저장 뒤)
-        write_dashboard(cfg, md, datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
+        write_dashboard(cfg, md, datetime.now(KST).strftime("%Y-%m-%d %H:%M"), today_drivers(report, cfg))
     except Exception:
         log.exception("dashboard write failed")
     return 0

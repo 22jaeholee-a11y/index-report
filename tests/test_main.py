@@ -227,3 +227,12 @@ def test_report_has_zone_and_summary_shows_it(tmp_path, monkeypatch):
     assert report.zone_rule == (cfg["zone"]["entry"], cfg["zone"]["exit"])
     rc, client = _run(tmp_path, monkeypatch)
     assert any(l.startswith("매수 구간:") for l in client.sent[0].splitlines())
+
+
+def test_dashboard_contains_today_drivers(tmp_path, monkeypatch):
+    rc, _ = _run(tmp_path, monkeypatch, extra=["--dry-run"])
+    html = (tmp_path / "dashboard.html").read_text(encoding="utf-8")
+    import json as _json, re as _re
+    payload = _json.loads(_re.search(r'<script id="data" type="application/json">(.*?)</script>', html, _re.S).group(1))
+    assert set(payload["today"]) == {"short", "mid"}
+    assert payload["today"]["mid"]["title"] == "중기적" and payload["today"]["mid"]["drivers"]

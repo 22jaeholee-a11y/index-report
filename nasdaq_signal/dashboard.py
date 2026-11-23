@@ -14,6 +14,7 @@ import pandas as pd
 from .data import MarketData
 from .indicators import compute_raw, mask_missing, to_signals
 from .scoring import Calibration, score_frame
+from .explain import driver_view
 from .zone import zone_states
 
 CATEGORIES = ("market", "sentiment", "geo", "macro")
@@ -63,18 +64,30 @@ def _rows(h: pd.DataFrame) -> list[dict]:
     return rows
 
 
-def render_html(h: pd.DataFrame, generated: str, zone_rule: tuple[float, float] = (20, -20)) -> str:
-    payload = json.dumps({"generated": generated, "rows": _rows(h)}, ensure_ascii=False)
+def _today_payload(today: dict | None) -> dict:
+    """{h: {title, score, position, drivers: [Driver]}} → JSON용 (지표 설명 포함)."""
+    out = {}
+    for h, t in (today or {}).items():
+        out[h] = {"title": t["title"], "score": t["score"], "position": t.get("position", ""),
+                  "drivers": [driver_view(d) for d in t["drivers"]]}
+    return out
+
+
+def render_html(h: pd.DataFrame, generated: str, zone_rule: tuple[float, float] = (20, -20),
+                today: dict | None = None) -> str:
+    payload = json.dumps({"generated": generated, "rows": _rows(h), "today": _today_payload(today)},
+                         ensure_ascii=False)
     entry, exit_ = zone_rule
     return (_TEMPLATE.replace("__ENTRY__", f"{entry:+.0f}").replace("__EXIT__", f"{exit_:+.0f}")
             .replace("__DATA__", payload.replace("</", "<\\/")))
 
 
-def write_dashboard(cfg: dict, md: MarketData, generated: str) -> Path:
+def write_dashboard(cfg: dict, md: MarketData, generated: str, today: dict | None = None) -> Path:
     path = Path(cfg["paths"].get("dashboard", Path(cfg["paths"]["state"]) / "dashboard.html"))
     path.parent.mkdir(parents=True, exist_ok=True)
     z = cfg.get("zone", {"entry": 20, "exit": -20})
-    path.write_text(render_html(build_history(cfg, md), generated, (z["entry"], z["exit"])), encoding="utf-8")
+    path.write_text(render_html(build_history(cfg, md), generated, (z["entry"], z["exit"]), today),
+                    encoding="utf-8")
     return path
 
 
@@ -92,7 +105,10 @@ def main() -> None:
     load_dotenv(".env")
     cfg = load_config()
     md = collect_all(cfg, (pd.Timestamp.today() - pd.DateOffset(years=7)).date().isoformat())
-    path = write_dashboard(cfg, md, datetime.now().strftime("%Y-%m-%d %H:%M"))
+    from .main import build_report, today_drivers  # 순환 import 방지
+
+    report, _ = build_report(cfg, md, datetime.now().date(), None)
+    path = write_dashboard(cfg, md, datetime.now().strftime("%Y-%m-%d %H:%M"), today_drivers(report, cfg))
     print(f"저장: {path.resolve()}")
     if "--open" in sys.argv:
         webbrowser.open(path.resolve().as_uri())
@@ -110,7 +126,7 @@ _TEMPLATE = r"""<!doctype html>
   --surface-0: #f6f6f4; --surface-1: #fcfcfb; --border: #e4e3df;
   --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
   --grid: #ecebe7; --axis: #c9c8c2; --ref: #9a9993; --live: #e4e3df; --zone: #e3f1e6;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --up: #2a78d6; --down: #e34948;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
@@ -118,7 +134,7 @@ _TEMPLATE = r"""<!doctype html>
     --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2c;
     --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8e8d86;
     --grid: #262624; --axis: #45443f; --ref: #6f6e68; --live: #34342f; --zone: #1d2e22;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --up: #3987e5; --down: #e66767;
   }
 }
 :root[data-theme="dark"] {
@@ -126,7 +142,7 @@ _TEMPLATE = r"""<!doctype html>
   --surface-0: #121211; --surface-1: #1a1a19; --border: #2e2e2c;
   --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8e8d86;
   --grid: #262624; --axis: #45443f; --ref: #6f6e68; --live: #262624;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --up: #3987e5; --down: #e66767;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--surface-0); color: var(--text-primary);
@@ -158,6 +174,22 @@ th, td { text-align: right; padding: 4px 6px; border-bottom: 1px solid var(--bor
 th:first-child, td:first-child { text-align: left; }
 th { color: var(--text-secondary); font-weight: 600; }
 .note { color: var(--text-muted); font-size: 12px; margin-top: 18px; }
+.drv { width: 100%; border-collapse: collapse; font-size: 13px; }
+.drv td { padding: 8px 6px; border-bottom: 1px solid var(--border); vertical-align: top; text-align: left; }
+.drv tr:last-child td { border-bottom: 0; }
+.drv .nm { font-weight: 600; white-space: nowrap; }
+.drv .what { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+.drv .learned { color: var(--text-muted); font-size: 12px; }
+.drv .val { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.drv .pos { color: var(--text-secondary); font-size: 12px; }
+.drv .pts { width: 170px; }
+.pbar { position: relative; height: 10px; background: var(--grid); border-radius: 4px; margin-top: 5px; }
+.pbar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--axis); }
+.pbar span { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.pnum { font-variant-numeric: tabular-nums; font-weight: 600; }
+.head2 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.head2 .sc { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .drv .pts { width: 110px; } .drv .what, .drv .learned { display: none; } }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 4px; }
 .sw.zone { background: var(--zone); border: 1px solid var(--axis); }
 </style>
@@ -170,6 +202,7 @@ th { color: var(--text-secondary); font-weight: 600; }
     <button data-n="21">1개월</button><button data-n="63">3개월</button><button data-n="126" aria-pressed="true">6개월</button>
     <button data-n="252">1년</button><button data-n="0">전체</button>
   </div>
+  <div id="today"></div>
   <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
   <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
   <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 2005년 이후 실제 결과로 계산 · 50% 기준선</p><div class="chart" id="c-up"></div></section>
@@ -324,7 +357,27 @@ th { color: var(--text-secondary); font-weight: 600; }
     b.setAttribute("aria-pressed", "true"); N = +b.dataset.n; render(); }));
   let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(render, 120); });
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
-  render(); table();
+  function today() {
+    const T = DATA.today || {}, host = document.getElementById("today");
+    const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    Object.keys(T).forEach(h => {
+      const t = T[h];
+      let html = `<section class="card"><div class="head2"><h2>오늘의 근거 · ${esc(t.title)}</h2>` +
+        `<span class="sc">${t.score > 0 ? "+" : ""}${Math.round(t.score)} <span class="pos">${esc(t.position)}</span></span></div>` +
+        `<p>막대 = 기여 점수 ÷ 최대치 · <span style="color:var(--up)">파랑</span> 상승 쪽, <span style="color:var(--down)">빨강</span> 하락 쪽 · 기여 점수를 모두 더하면 위 점수</p><table class="drv"><tbody>`;
+      t.drivers.forEach(d => {
+        const frac = d.max ? Math.max(-1, Math.min(1, d.points / d.max)) : 0;
+        const w = Math.abs(frac) * 50, left = frac >= 0 ? 50 : 50 - w;
+        const col = frac >= 0 ? "var(--up)" : "var(--down)";
+        html += `<tr><td><div class="nm">${esc(d.label)}</div><div class="what">${esc(d.what)}</div><div class="learned">${esc(d.learned)}</div></td>` +
+          `<td class="val">${esc(d.value)}<div class="pos">${esc(d.position)}</div></td>` +
+          `<td class="pts"><span class="pnum">${d.points > 0 ? "+" : ""}${Math.round(d.points)}</span> / ${d.max == null ? "-" : Math.round(d.max)}점` +
+          `<div class="pbar" role="img" aria-label="${Math.round(d.points)}점"><span style="left:${left}%;width:${w}%;background:${col}"></span></div></td></tr>`;
+      });
+      host.insertAdjacentHTML("beforeend", html + "</tbody></table></section>");
+    });
+  }
+  render(); table(); today();
 })();
 </script>
 </body>
