@@ -54,7 +54,15 @@ class EncryptedFileTokenStore:
     def __init__(self, path: str, key: str):
         from cryptography.fernet import Fernet
         self.path = Path(path)
-        self._f = Fernet(key.encode() if isinstance(key, str) else key)
+        if isinstance(key, bytes):
+            key = key.decode()
+        # 복사·붙여넣기 중 흔한 손상 보정: 앞뒤 공백·따옴표 제거, 끝의 '=' 채움 복구
+        key = key.strip().strip('"').strip("'").rstrip("=")
+        key += "=" * (-len(key) % 4)
+        try:
+            self._f = Fernet(key.encode())
+        except ValueError as e:
+            raise KakaoAuthError("KAKAO_TOKEN_KEY 형식이 올바르지 않습니다 (44자, 영문·숫자·-·_ 와 끝의 '=')") from e
         self._mem: dict | None = None
 
     def load(self) -> dict | None:

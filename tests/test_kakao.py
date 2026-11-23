@@ -178,3 +178,13 @@ def test_encrypted_store_skips_rewrite_when_unchanged(tmp_path):
     s.save({"refresh_token": "r", "access_token": "a2"})   # 액세스 토큰만 바뀜 → 파일 그대로 (매일 커밋 방지)
     assert (tmp_path / "t.enc").read_bytes() == before
     assert s.load()["access_token"] == "a2"               # 같은 실행 안에서는 새 액세스 토큰 사용
+
+
+def test_encrypted_store_accepts_key_missing_padding_or_whitespace(tmp_path):
+    from cryptography.fernet import Fernet
+    from nasdaq_signal.kakao import EncryptedFileTokenStore
+    key = Fernet.generate_key().decode()
+    assert key.endswith("=")
+    EncryptedFileTokenStore(str(tmp_path / "t.enc"), key).save({"refresh_token": "r"})
+    for variant in (key.rstrip("="), f"  {key}\n", f'"{key}"'):   # 복사하다 '=' 빠짐, 공백·따옴표 섞임
+        assert EncryptedFileTokenStore(str(tmp_path / "t.enc"), variant).load()["refresh_token"] == "r"
