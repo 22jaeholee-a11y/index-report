@@ -149,9 +149,9 @@ def test_reason_messages_layout_and_length():
     assert len(msgs) == 5
     short = msgs[1].splitlines()
     assert short[0] == "[단기적] +32 (평소 대비 강함)"
-    assert short[1] == "• VIX 35.9(5년 상위 3%) 공포 높음 → 과거엔 이후 상승 +12점"
-    assert short[2] == "• 52주 고점 대비 -8.3%(5년 하위 10%) 고점 대비 큰 낙폭 → 과거엔 이후 상승 +9점"
-    assert short[3] == "• 10년물 20일 +31bp(5년 상위 8%) 금리 급등 → 과거엔 이후 하락 -6점"
+    assert short[1] == "• VIX 35.9(5년 상위 3%) → +12점"
+    assert short[2] == "• 52주 고점 대비 -8.3%(5년 하위 10%) → +9점"
+    assert short[3] == "• 10년물 20일 +31bp(5년 상위 8%) → -6점"
     assert all(len(m) <= 200 for m in msgs)
     assert msgs[3].splitlines()[1] == "• 뚜렷한 근거 지표 없음 (신호 약함)"
 
@@ -161,15 +161,12 @@ def test_reason_message_drops_drivers_to_fit():
     many = {"short": [Driver("vix_term", 1.234, 0.99, 10 - i, 1, True) for i in range(8)], "mid": [], "long": []}
     msgs = format_messages(_report(drivers=many))
     assert len(msgs[1]) <= 200 and msgs[1].count("•") >= 2
-    assert "극단적 단기 공포 급등" in msgs[1]
 
 
-def test_reason_line_describes_current_side():
+def test_reason_line_is_value_position_and_points_only():
     from nasdaq_signal.explain import Driver, describe
-    low = describe(Driver("trend_50", -0.144, 0.01, 10.0, -1, False))
-    high = describe(Driver("trend_50", 0.08, 0.95, -7.0, -1, False))
-    assert "50일선 아래 이탈 → 과거엔 이후 상승" in low
-    assert "50일선 위 과열 → 과거엔 이후 하락" in high
+    assert describe(Driver("trend_50", -0.144, 0.01, 10.0, -1, False, 10.0)) == "• 50일선 대비 -14.4%(5년 하위 1%) → +10/10점"
+    assert describe(Driver("vix", 35.9, 0.99, 19.0, 1, True, 20.0)) == "• VIX 35.9(5년 상위 1%) → +19/20점"
 
 
 def test_unpredicted_horizon_shows_historical_average_and_no_reason_message():
@@ -180,11 +177,12 @@ def test_unpredicted_horizon_shows_historical_average_and_no_reason_message():
     assert not any(m.startswith("[장기적]") for m in msgs)
 
 
-def test_middle_percentile_is_not_described_as_extreme():
+def test_reason_line_has_no_extra_wording():
     from nasdaq_signal.explain import Driver, describe
-    line = describe(Driver("us10y_chg_20", 0.08, 0.56, -4.0, -1, False))
-    assert "금리 급등" not in line and "평균보다 다소 높음" in line
-    assert "금리 급락" in describe(Driver("us10y_chg_20", -0.4, 0.15, 3.0, -1, False))
+    line = describe(Driver("us10y_chg_20", 0.08, 0.56, -4.0, -1, False, 12.0))
+    assert line == "• 10년물 20일 +8bp(5년 상위 44%) → -4/12점"
+    for word in ("과거엔", "이후", "평균보다", "급등", "극단적"):
+        assert word not in line
 
 
 def test_score_position_shown_as_historical_percentile():

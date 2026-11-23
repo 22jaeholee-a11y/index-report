@@ -59,5 +59,5 @@ def test_top_drivers_carry_max_points():
 def test_describe_shows_points_over_max():
     from nasdaq_signal.explain import describe
     line = describe(Driver("vix", 35.9, 0.99, 66.2, 1, False, 66.7))
-    assert line.endswith("상승 +66/67점")
-    assert describe(Driver("us2y_chg_20", 0.11, 0.59, -3.0, -1, False, 16.7)).endswith("하락 -3/17점")
+    assert line == "• VIX 35.9(5년 상위 1%) → +66/67점"
+    assert describe(Driver("us2y_chg_20", 0.11, 0.59, -3.0, -1, False, 16.7)) == "• 2년물 20일 +11bp(5년 상위 41%) → -3/17점"
