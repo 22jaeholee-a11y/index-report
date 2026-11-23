@@ -186,7 +186,7 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 .readout i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
 .readout b { color: var(--text-primary); font-variant-numeric: tabular-nums; margin-left: 3px; }
 .readout .ex { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.chart { position: relative; }
+.chart { position: relative; touch-action: pan-y; }
 svg { display: block; width: 100%; height: auto; overflow: visible; -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 details { margin-top: 8px; }
@@ -306,6 +306,12 @@ th { color: var(--text-secondary); font-weight: 600; }
   // 보이는 구간 (ALL 기준 시작·끝 인덱스). 기간 버튼이 정하고, 두 손가락 확대·축소로 바뀜
   const viewFor = n => ({ s: n ? Math.max(0, ALL.length - n) : 0, e: ALL.length - 1 });
   let VIEW = viewFor(N), PINCH = null;
+  const TOUCHING = new Set();        // 지금 화면에 닿아 있는 손가락(pointerId)
+  const SINGLE_CANCEL = new Set();   // 차트별 한 손가락 동작 취소 함수 (두 번째 손가락이 닿으면 모두 호출)
+  document.addEventListener("pointerdown", e => { if (e.pointerType !== "touch") return;
+    TOUCHING.add(e.pointerId); if (TOUCHING.size >= 2) SINGLE_CANCEL.forEach(f => f()); }, true);
+  const untouch = e => TOUCHING.delete(e.pointerId);
+  document.addEventListener("pointerup", untouch, true); document.addEventListener("pointercancel", untouch, true);
   const DRAWN = [];
 
   function setSel(i, lock) {
@@ -396,11 +402,12 @@ th { color: var(--text-secondary); font-weight: 600; }
     const SLOP = 8, LONG_PRESS = 350;
     let dragging = false, touch = null;   // touch = { x, y, id, scrub, timer }
     const endTouch = () => { if (touch) clearTimeout(touch.timer); touch = null; };
+    SINGLE_CANCEL.add(endTouch);
     const startScrub = e => { touch.scrub = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} };
     hit.addEventListener("pointerdown", e => {
       if (e.pointerType === "mouse") { dragging = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} setSel(idxAt(e), true); return; }
       endTouch();
-      if (PINCH) return;                                   // 두 번째 손가락 → 확대·축소 (날짜 선택 안 함)
+      if (PINCH || TOUCHING.size >= 2) return;            // 두 번째 손가락 → 확대·축소 (날짜 선택 안 함)
       const t = touch = { x: e.clientX, y: e.clientY, id: e.pointerId, scrub: false };
       t.timer = setTimeout(() => {                       // 꾹 누르기
         if (touch !== t || t.scrub) return;
@@ -409,7 +416,7 @@ th { color: var(--text-secondary); font-weight: 600; }
       }, LONG_PRESS);
     });
     hit.addEventListener("pointermove", e => {
-      if (PINCH) { endTouch(); return; }
+      if (PINCH || TOUCHING.size >= 2) { endTouch(); return; }
       if (touch && e.pointerId === touch.id) {
         const dx = Math.abs(e.clientX - touch.x), dy = Math.abs(e.clientY - touch.y);
         if (!touch.scrub && dx > SLOP && dx > dy) { clearTimeout(touch.timer); startScrub(e); }   // 옆으로 밀기
@@ -455,7 +462,7 @@ th { color: var(--text-secondary); font-weight: 600; }
   function render() {
     const keep = SEL == null ? null : ROWS[SEL] && ROWS[SEL].date;   // 기간을 바꿔도 같은 날짜 유지
     ROWS = thin(ALL.slice(VIEW.s, VIEW.e + 1), 1500);
-    DRAWN.length = 0;
+    DRAWN.length = 0; SINGLE_CANCEL.clear();
     ACTIVE.forEach(c => DRAWN.push(draw(c, ROWS)));
     let j = keep ? ROWS.findIndex(r => r.date === keep) : -1;
     if (keep && j < 0) j = ROWS.findIndex(r => r.date >= keep);   // 줄인 구간에서는 가장 가까운 다음 날짜
@@ -478,8 +485,7 @@ th { color: var(--text-secondary); font-weight: 600; }
 
   // ── 확대·축소: 두 손가락 핀치(휴대폰), 트랙패드 핀치·Ctrl+휠(PC). 세 차트가 같은 구간으로 함께 바뀜 ──
   const MIN_SPAN = 10;                       // 최소 10거래일까지 확대
-  const PTS = new Map();                     // 차트 위 손가락: id → { x, cid }
-  const plotFrac = (x, cid) => { const h = document.querySelector(`#${cid} [data-hit]`); if (!h) return 0.5;
+  const plotFrac = (x, host) => { const h = host.querySelector("[data-hit]"); if (!h) return 0.5;
     const b = h.getBoundingClientRect(); return Math.min(1, Math.max(0, (x - b.left) / b.width)); };
   let raf = 0;
   const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); }); };
@@ -491,34 +497,34 @@ th { color: var(--text-secondary); font-weight: 600; }
     document.querySelectorAll(".bar button").forEach(o => o.setAttribute("aria-pressed", "false"));   // 기간 버튼 누르면 원래대로
     schedule();
   }
-  function startPinch() {
-    const [a, b] = [...PTS.values()], cx = (a.x + b.x) / 2, frac = plotFrac(cx, a.cid);
-    PINCH = { d0: Math.max(Math.abs(a.x - b.x), 30), view0: { ...VIEW }, frac0: frac, cid: a.cid };
-    PINCH.anchor = VIEW.s + frac * (VIEW.e - VIEW.s);
+  // 휴대폰: 터치 이벤트로 화면의 두 손가락을 한꺼번에 읽음 (차트 상자 안 어디든). 페이지 확대·스크롤은 막음
+  const two = e => [e.touches[0].clientX, e.touches[1].clientX];
+  function startPinch(e, host) {
+    const [x1, x2] = two(e), frac = plotFrac((x1 + x2) / 2, host);
+    SINGLE_CANCEL.forEach(f => f());
+    PINCH = { d0: Math.max(Math.abs(x1 - x2), 40), span0: VIEW.e - VIEW.s, anchor: VIEW.s + frac * (VIEW.e - VIEW.s), host };
   }
-  document.addEventListener("pointerdown", e => {
-    if (e.pointerType !== "touch") return;
-    const h = e.target.closest && e.target.closest("[data-hit]"); if (!h) return;
-    PTS.set(e.pointerId, { x: e.clientX, cid: h.closest(".chart").id });
-    if (PTS.size === 2) startPinch();
-  }, true);
-  document.addEventListener("pointermove", e => {
-    const p = PTS.get(e.pointerId); if (!p) return;
-    p.x = e.clientX;
-    if (!PINCH || PTS.size < 2) return;
-    const [a, b] = [...PTS.values()], d = Math.max(Math.abs(a.x - b.x), 30);
-    const span0 = PINCH.view0.e - PINCH.view0.s;
-    setView(PINCH.anchor, plotFrac((a.x + b.x) / 2, PINCH.cid), span0 * PINCH.d0 / d);   // 벌리면 확대, 모으면 축소, 같이 밀면 이동
-  }, true);
-  const lift = e => { PTS.delete(e.pointerId); if (PTS.size < 2) PINCH = null; };
-  document.addEventListener("pointerup", lift, true);
-  document.addEventListener("pointercancel", lift, true);
-  document.addEventListener("touchmove", e => { if (PINCH && e.cancelable) e.preventDefault(); }, { passive: false });   // 핀치 중 페이지 스크롤·확대 방지
+  function movePinch(e) {
+    const [x1, x2] = two(e), d = Math.max(Math.abs(x1 - x2), 40);
+    setView(PINCH.anchor, plotFrac((x1 + x2) / 2, PINCH.host), PINCH.span0 * PINCH.d0 / d);   // 벌리면 확대, 모으면 축소, 같이 밀면 이동
+  }
+  document.querySelectorAll("#panel-chart .chart").forEach(host => {
+    host.addEventListener("touchstart", e => {
+      if (e.touches.length >= 2) { if (e.cancelable) e.preventDefault(); startPinch(e, host); }
+    }, { passive: false });
+    host.addEventListener("touchmove", e => {
+      if (e.touches.length >= 2) { if (e.cancelable) e.preventDefault(); if (!PINCH) startPinch(e, host); movePinch(e); }
+    }, { passive: false });
+    const end = e => { if (e.touches.length < 2) PINCH = null; };
+    host.addEventListener("touchend", end); host.addEventListener("touchcancel", end);
+    // 아이폰 사파리: 두 손가락 제스처로 페이지 전체가 확대되는 것 방지
+    ["gesturestart", "gesturechange", "gestureend"].forEach(t => host.addEventListener(t, e => e.preventDefault(), { passive: false }));
+  });
   document.addEventListener("wheel", e => {   // PC: 트랙패드 핀치(=ctrlKey 휠) 또는 Ctrl+휠
     if (!e.ctrlKey) return;
     const h = e.target.closest && e.target.closest("[data-hit]"); if (!h) return;
     e.preventDefault();
-    const cid = h.closest(".chart").id, frac = plotFrac(e.clientX, cid), span = VIEW.e - VIEW.s;
+    const host = h.closest(".chart"), frac = plotFrac(e.clientX, host), span = VIEW.e - VIEW.s;
     setView(VIEW.s + frac * span, frac, span * Math.exp(e.deltaY * 0.01));
   }, { passive: false });
   let rt, lastW = window.innerWidth;
