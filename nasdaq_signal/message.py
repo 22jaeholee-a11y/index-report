@@ -93,8 +93,8 @@ def _position(r: "Report", h: str, threshold: float) -> str:
     if p is None or _isnan(p):
         return _relative(s, threshold)
     if p >= 0.5:
-        return f"과거 상위 {max(1, round((1 - p) * 100))}%"
-    return f"과거 하위 {max(1, round(p * 100))}%"
+        return f"상위 {max(1, round((1 - p) * 100))}%"
+    return f"하위 {max(1, round(p * 100))}%"
 
 
 def _reason_messages(r: "Report", h: str, threshold: float) -> list[str]:

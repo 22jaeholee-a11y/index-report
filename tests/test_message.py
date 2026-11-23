@@ -190,9 +190,9 @@ def test_middle_percentile_is_not_described_as_extreme():
 def test_score_position_shown_as_historical_percentile():
     msgs = format_messages(_report(drivers=_drivers(), score_pct={"short": 0.89, "mid": 0.30, "long": 0.5}))
     lines = msgs[0].splitlines()
-    assert lines[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15 (과거 상위 11%)"
-    assert lines[2].endswith("(과거 하위 30%)")
-    assert msgs[1].splitlines()[0] == "[단기적] +32 (과거 상위 11%)"
+    assert lines[1] == "단기 ▲ 상승 55 · 횡보 30 · 하락 15 (상위 11%)"
+    assert lines[2].endswith("(하위 30%)")
+    assert msgs[1].splitlines()[0] == "[단기적] +32 (상위 11%)"
 
 
 def test_all_drivers_shown_split_across_messages():
@@ -203,7 +203,7 @@ def test_all_drivers_shown_split_across_messages():
     mid_msgs = [m for m in msgs if m.startswith("[중기적")]
     assert len(mid_msgs) >= 2
     total = len(mid_msgs)
-    assert mid_msgs[0].splitlines()[0] == f"[중기적 1/{total}] +5 (과거 상위 1%)"
+    assert mid_msgs[0].splitlines()[0] == f"[중기적 1/{total}] +5 (상위 1%)"
     assert mid_msgs[1].splitlines()[0] == f"[중기적 2/{total}]"
     assert sum(m.count("•") for m in mid_msgs) == len(names)
     assert all(len(m) <= 200 for m in msgs)
