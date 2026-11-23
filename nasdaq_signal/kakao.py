@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Protocol
@@ -34,8 +35,12 @@ class FileTokenStore:
         return json.loads(self.path.read_text(encoding="utf-8"))
 
     def save(self, tokens: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(tokens, ensure_ascii=False, indent=1), encoding="utf-8")
+        # 소유자 전용 권한(0600) — 리눅스/클라우드 실행 시 토큰 노출 방지. Windows에선 무시됨.
+        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(json.dumps(tokens, ensure_ascii=False, indent=1))
+        os.chmod(self.path, 0o600)
 
 
 def merge_token_response(old: dict | None, resp: dict, now: datetime | None = None) -> dict:

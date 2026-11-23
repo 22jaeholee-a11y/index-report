@@ -108,3 +108,12 @@ def test_extract_code_from_redirect_url():
     assert extract_code("http://localhost:5000/callback?code=abc123 ") == "abc123"
     with pytest.raises(ValueError):
         extract_code("http://localhost:5000/callback?error=access_denied")
+
+
+@pytest.mark.skipif(__import__("sys").platform == "win32", reason="POSIX permissions only")
+def test_token_file_is_owner_only(tmp_path):
+    import os
+    import stat
+    s = FileTokenStore(str(tmp_path / "t.json"))
+    s.save({"access_token": "a"})
+    assert stat.S_IMODE(os.stat(tmp_path / "t.json").st_mode) == 0o600
