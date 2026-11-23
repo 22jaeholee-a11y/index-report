@@ -45,5 +45,7 @@ powershell -ExecutionPolicy Bypass -File scripts\register_task.ps1   # 매일 09
 ```
 기록: `state/history.csv`(일별 지표·점수), `state/logs/`(실행 로그).
 
+차트: 매 실행마다 `state/dashboard.html`이 갱신됩니다(더블클릭으로 열기). 직접 만들려면 `.venv\Scripts\python -m nasdaq_signal.dashboard --open`.
+
 ## 종료 코드
 0 정상 · 1 핵심 데이터(나스닥 가격) 수집 실패(오류 메시지 발송) · 2 카카오 인증 문제

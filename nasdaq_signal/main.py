@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from .config import load_config
 from .data import DataSourceError, MarketData, collect_all
+from .dashboard import write_dashboard
 from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
@@ -165,6 +166,10 @@ def main(argv: list[str] | None = None) -> int:
             append_history(cfg["paths"]["history"], row)
         except Exception:
             log.exception("history write failed")
+    try:  # 차트 페이지 생성 실패도 발송을 막지 않음 (발송 기록 반영 위해 history 저장 뒤)
+        write_dashboard(cfg, md, datetime.now(KST).strftime("%Y-%m-%d %H:%M"))
+    except Exception:
+        log.exception("dashboard write failed")
     return 0
 
 

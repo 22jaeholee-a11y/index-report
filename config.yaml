@@ -47,4 +47,4 @@ fred_series:               # series_id: 발표 지연(영업일)
   NFCI: 5
   SAHMREALTIME: 25
 kakao: {redirect_uri: "http://localhost:5000/callback", link_url: "https://finance.yahoo.com/quote/%5ENDX"}
-paths: {state: "state", calibration: "state/calibration.json", history: "state/history.csv", tokens: "state/kakao_tokens.json", logs: "state/logs"}
+paths: {state: "state", calibration: "state/calibration.json", history: "state/history.csv", dashboard: "state/dashboard.html", tokens: "state/kakao_tokens.json", logs: "state/logs"}

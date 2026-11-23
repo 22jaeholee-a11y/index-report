@@ -197,3 +197,16 @@ def test_build_report_includes_all_active_drivers_and_score_position(tmp_path):
     assert len(with_value) >= 8
     assert sorted(d.name for d in report.drivers["mid"]) == sorted(with_value)
     assert 0.0 <= report.score_pct["short"] <= 1.0
+
+
+def test_run_writes_dashboard(tmp_path, monkeypatch):
+    rc, _ = _run(tmp_path, monkeypatch, extra=["--dry-run"])
+    assert rc == 0 and (tmp_path / "dashboard.html").exists()
+
+
+def test_dashboard_failure_does_not_block_messages(tmp_path, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("chart broke")
+    monkeypatch.setattr(m, "write_dashboard", boom)
+    rc, client = _run(tmp_path, monkeypatch)
+    assert rc == 0 and _structure_ok(client.sent)
