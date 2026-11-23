@@ -247,8 +247,8 @@ th { color: var(--text-secondary); font-weight: 600; }
   </div>
   <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
   <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
-  <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 2005년 이후 실제 결과로 계산 · 50% 기준선</p><div class="chart" id="c-up"></div></section>
-  <section class="card"><h2>카테고리 점수 (중기)</h2><p>-1 ~ +1 · 카테고리 안 지표 신호의 평균</p><div class="chart" id="c-cat"></div></section>
+  <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 2005년 이후 실제 결과로 계산 · 50% 기준선 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-up"></div></section>
+  <section class="card"><h2>카테고리 점수 (중기)</h2><p>-1 ~ +1 · 카테고리 안 지표 신호의 평균 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-cat"></div></section>
   <details><summary>표로 보기 (최근 30일)</summary><div class="tbl" id="table"></div></details>
   <p class="note">차트를 누르거나 좌우로 밀면 4개 차트가 같은 날짜로 맞춰지고 값이 위에 표시됩니다. 차트 밖을 누르면 최신 날짜로 돌아갑니다.
   회색 음영은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
@@ -276,10 +276,10 @@ th { color: var(--text-secondary); font-weight: 600; }
     { id: "c-score", zone: true, domain: [-100, 100], ticks: [-100, -50, 0, 50, 100], ref: 0,
       series: [{ key: "short_score", name: "단기", color: "--s1" }, { key: "mid_score", name: "중기", color: "--s2" }],
       fmt: v => { const r = Math.round(v); return r > 0 ? "+" + r : String(r === 0 ? 0 : r); } },
-    { id: "c-up", domain: [0, 100], ticks: [0, 25, 50, 75, 100], ref: 50,
+    { id: "c-up", zone: true, domain: [0, 100], ticks: [0, 25, 50, 75, 100], ref: 50,
       series: [{ key: "short_up", name: "단기 상승", color: "--s1" }, { key: "mid_up", name: "중기 상승", color: "--s2" }],
       fmt: v => Math.round(v) + "%" },
-    { id: "c-cat", domain: [-1, 1], ticks: [-1, -0.5, 0, 0.5, 1], ref: 0,
+    { id: "c-cat", zone: true, domain: [-1, 1], ticks: [-1, -0.5, 0, 0.5, 1], ref: 0,
       series: [{ key: "mid_market", name: "시장", color: "--s1" }, { key: "mid_sentiment", name: "심리", color: "--s2" },
                { key: "mid_geo", name: "지정학", color: "--s3" }, { key: "mid_macro", name: "매크로", color: "--s4" }],
       fmt: v => Math.abs(v) < 0.005 ? "0.00" : (v > 0 ? "+" : "") + v.toFixed(2) },

@@ -150,3 +150,9 @@ def test_long_press_scrub_support(tmp_path):
     assert "LONG_PRESS" in html                       # 꾹 누르기 시간
     assert "-webkit-touch-callout: none" in html      # 꾹 누를 때 시스템 메뉴 방지
     assert "passive: false" in html                   # 고르기 중 스크롤 막기 (touchmove preventDefault)
+
+
+def test_buy_zone_shaded_on_all_four_charts():
+    src = open("nasdaq_signal/dashboard.py", encoding="utf-8").read()
+    for cid in ("c-ndx", "c-score", "c-up", "c-cat"):
+        assert f'{{ id: "{cid}", zone: true' in src
