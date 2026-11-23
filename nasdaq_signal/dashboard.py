@@ -237,7 +237,7 @@ th { color: var(--text-secondary); font-weight: 600; }
     <button id="sel-reset" hidden>최신으로</button>
   </div>
   <div class="bar" role="group" aria-label="기간">
-    <button data-n="21">1개월</button><button data-n="63">3개월</button><button data-n="126" aria-pressed="true">6개월</button>
+    <button data-n="21" aria-pressed="true">1개월</button><button data-n="63">3개월</button><button data-n="126">6개월</button>
     <button data-n="252">1년</button><button data-n="0">전체</button>
   </div>
   <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
@@ -289,7 +289,7 @@ th { color: var(--text-secondary); font-weight: 600; }
   }
 
   // ── 선택 상태: 4개 차트가 같은 날짜를 공유 ──
-  let N = 126, ROWS = [], SEL = null, LOCK = false;   // SEL = 선택 인덱스(ROWS 기준), null = 최신
+  let N = 21, ROWS = [], SEL = null, LOCK = false;   // SEL = 선택 인덱스(ROWS 기준), null = 최신
   const DRAWN = [];
 
   function setSel(i, lock) {
@@ -371,14 +371,31 @@ th { color: var(--text-secondary); font-weight: 600; }
 
     const idxAt = evt => { const box = svg.getBoundingClientRect(), px = (evt.clientX - box.left) * (W / box.width);
       return Math.round((px - m.l) / iw * (rows.length - 1)); };
-    let dragging = false;
-    hit.addEventListener("pointerdown", e => { dragging = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} setSel(idxAt(e), true); });
-    hit.addEventListener("pointermove", e => {
-      if (dragging) setSel(idxAt(e), true);                       // 누른 채 좌우로 밀기 = 날짜 이동
-      else if (e.pointerType === "mouse" && !LOCK) setSel(idxAt(e), false);   // 마우스 호버 미리보기
+    // 마우스: 누르면 바로 선택. 터치: 손가락을 대는 것만으로는 선택하지 않음 (스크롤 중 오선택 방지)
+    //  - 움직이지 않고 떼면(탭) 선택, 옆으로 8px 이상 밀면(가로가 세로보다 클 때) 날짜 이동
+    //  - 세로로 움직이면 페이지 스크롤로 두고 아무것도 하지 않음 (브라우저가 pointercancel 을 보냄)
+    const SLOP = 8;
+    let dragging = false, touch = null;   // touch = { x, y, id, scrub }
+    hit.addEventListener("pointerdown", e => {
+      if (e.pointerType === "mouse") { dragging = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} setSel(idxAt(e), true); return; }
+      touch = { x: e.clientX, y: e.clientY, id: e.pointerId, scrub: false };
     });
-    const up = () => { dragging = false; };
-    hit.addEventListener("pointerup", up); hit.addEventListener("pointercancel", up);
+    hit.addEventListener("pointermove", e => {
+      if (touch && e.pointerId === touch.id) {
+        const dx = Math.abs(e.clientX - touch.x), dy = Math.abs(e.clientY - touch.y);
+        if (!touch.scrub && dx > SLOP && dx > dy) { touch.scrub = true; try { hit.setPointerCapture(e.pointerId); } catch (_) {} }
+        else if (!touch.scrub && dy > SLOP) { touch = null; return; }      // 세로 = 스크롤
+        if (touch && touch.scrub) setSel(idxAt(e), true);
+        return;
+      }
+      if (dragging) setSel(idxAt(e), true);                                  // 마우스로 누른 채 끌기
+      else if (e.pointerType === "mouse" && !LOCK) setSel(idxAt(e), false);  // 마우스 호버 미리보기
+    });
+    hit.addEventListener("pointerup", e => {
+      if (touch && e.pointerId === touch.id && !touch.scrub) setSel(idxAt(e), true);   // 탭
+      touch = null; dragging = false;
+    });
+    hit.addEventListener("pointercancel", () => { touch = null; dragging = false; });
     hit.addEventListener("pointerleave", e => { if (e.pointerType === "mouse" && !LOCK && !dragging) setSel(null, false); });
 
     return { show(i, mark) {

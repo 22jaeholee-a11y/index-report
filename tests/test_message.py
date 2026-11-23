@@ -173,7 +173,7 @@ def test_unpredicted_horizon_shows_historical_average_and_no_reason_message():
     r = _report(drivers=_drivers(), unpredicted={"long"}, probs={"short": (55, 30, 15), "mid": (38, 40, 22), "long": (76, 13, 11)})
     msgs = format_messages(r)
     assert len(msgs) == 4
-    assert msgs[0].splitlines()[3] == "장기 ▲ 상승 76 · 횡보 13 · 하락 11 (역사적 평균, 예측 신호 없음)"
+    assert msgs[0].splitlines()[3] == "장기 ▲ 상승 76 · 횡보 13 · 하락 11"
     assert not any(m.startswith("[장기적]") for m in msgs)
 
 

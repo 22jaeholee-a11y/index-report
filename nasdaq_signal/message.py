@@ -134,7 +134,7 @@ def _message_one(r: Report, threshold: float) -> str:
         p = r.probs.get(h)
         if h in r.unpredicted:
             if p:
-                lines.append(f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]} (역사적 평균, 예측 신호 없음)")
+                lines.append(f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]}")
             else:
                 lines.append(f"{ko} 예측 신호 없음")
             continue

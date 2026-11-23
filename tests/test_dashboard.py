@@ -123,3 +123,10 @@ def test_vercel_serves_only_static_public_folder():
     assert v["outputDirectory"] == "public" and v["framework"] is None
     ignore = open(".vercelignore", encoding="utf-8").read().split()
     assert "/*" in ignore and "!/public" in ignore and "!/vercel.json" in ignore
+
+
+def test_chart_default_range_is_one_month(tmp_path):
+    html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
+    assert '<button data-n="21" aria-pressed="true">1개월</button>' in html
+    assert 'data-n="126" aria-pressed="true"' not in html
+    assert "let N = 21," in html
