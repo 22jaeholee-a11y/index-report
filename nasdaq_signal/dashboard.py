@@ -253,10 +253,6 @@ th { color: var(--text-secondary); font-weight: 600; }
   <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · (상승 n%) = 그 점수대의 2005년 이후 실제 상승 비율 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
   <section class="card"><h2>카테고리 점수 (중기)</h2><p>-1 ~ +1 · 카테고리 안 지표 신호의 평균 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-cat"></div></section>
   <details><summary>표로 보기 (최근 30일)</summary><div class="tbl" id="table"></div></details>
-  <p class="note">차트를 누르거나 좌우로 밀면 모든 차트가 같은 날짜로 맞춰지고 값이 위에 표시됩니다. 차트 밖을 누르면 최신 날짜로 돌아갑니다.
-  회색 음영은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
-  당시 실제로 받았을 메시지보다 잘 맞아 보일 수 있습니다. 2007년 이전에는 일부 지표(시장 폭 2003~, VIX3M·신용 2007~)가 없어
-  남은 지표로만 계산했습니다.</p>
   </div>
   <p class="note">투자 판단의 참고 자료일 뿐 예측을 보장하지 않습니다.</p>
 </main>
@@ -353,8 +349,6 @@ th { color: var(--text-secondary); font-weight: 600; }
         }
       });
     }
-    rows.forEach((r, i) => { if (r.live) {   // 실제 발송된 날 음영
-      el("rect", { x: x(i) - Math.max(step, 2) / 2, y: m.t, width: Math.max(step, 2), height: ih, fill: css("--live") }, svg); } });
     ticks.forEach(t => {
       el("line", { x1: m.l, x2: m.l + iw, y1: y(t), y2: y(t), stroke: css("--grid"), "stroke-width": 1 }, svg);
       el("text", { x: m.l - 6, y: y(t) + 4, "text-anchor": "end", "font-size": fs, fill: css("--text-muted") }, svg).textContent = cfg.fmt(t);

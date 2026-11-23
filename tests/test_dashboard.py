@@ -181,3 +181,9 @@ def test_index_chart_uses_log_scale_for_long_ranges():
     src = open("nasdaq_signal/dashboard.py", encoding="utf-8").read()
     assert '{ id: "c-ndx", zone: true, logIfWide: true' in src
     assert "function logTicks(" in src
+
+
+def test_no_sent_day_shading_or_long_note(tmp_path):
+    html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
+    assert "실제 발송된 날 음영" not in html and 'css("--live")' not in html
+    assert "회색 음영은" not in html and "차트를 누르거나 좌우로 밀면" not in html
