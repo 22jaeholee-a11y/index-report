@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
+from .explain import Driver, describe
 from .scoring import arrow
 
 MAX_LEN = 200
@@ -34,6 +35,7 @@ class Report:
     low_confidence: bool
     reauth_days: int | None
     calibration_stale: bool = False
+    drivers: dict[str, list[Driver]] = field(default_factory=dict)
 
 
 def _isnan(v) -> bool:
@@ -68,6 +70,35 @@ def _prob_arrow(p: tuple[int, int, int]) -> str:
     return "─"
 
 
+def _horizon_arrow(r: "Report", h: str, threshold: float) -> str:
+    p = r.probs.get(h)
+    return _prob_arrow(p) if p else arrow(r.scores[h], threshold)
+
+
+def _relative(score: float, threshold: float) -> str:
+    """점수 = 5년 기준 '평소 대비' 우호도. 화살표(가장 가능성 높은 결과)와 별개라 말로 표시."""
+    if score >= threshold:
+        return "평소 대비 강함"
+    if score <= -threshold:
+        return "평소 대비 약함"
+    return "평소 대비 보통"
+
+
+def _reason_message(r: "Report", h: str, threshold: float) -> str:
+    s = r.scores.get(h)
+    head = f"[{HORIZON_KO[h]} 근거]"
+    if not _isnan(s):
+        head += f" 우호도 {_score(s)} ({_relative(s, threshold)})"
+    lines = [head]
+    for d in r.drivers.get(h, []):
+        if len("\n".join(lines + [describe(d)])) > MAX_LEN:
+            break
+        lines.append(describe(d))
+    if len(lines) == 1:
+        lines.append("• 뚜렷한 근거 지표 없음 (신호 약함)")
+    return "\n".join(lines)
+
+
 def _message_one(r: Report, threshold: float) -> str:
     day = f"{_md(r.run_date)}({WEEKDAYS[r.run_date.weekday()]})"
     tail = f"휴장, {_md(r.as_of)} 기준" if r.market_closed else f"{_md(r.as_of)} 마감"
@@ -78,9 +109,11 @@ def _message_one(r: Report, threshold: float) -> str:
             lines.append(f"{ko} 계산 불가")
             continue
         p = r.probs.get(h)
-        line = f"{ko} {_prob_arrow(p) if p else arrow(s, threshold)} {_score(s)}"
-        if p:
-            line += f" 상{p[0]} 횡{p[1]} 하{p[2]}"
+        if p:  # 화살표는 확률을 따르므로 부호 있는 점수 대신 '평소 대비'를 말로 표시
+            line = (f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]}"
+                    f" ({_relative(s, threshold)})")
+        else:
+            line = f"{ko} {arrow(s, threshold)} {_score(s)}"
         lines.append(line)
     if r.low_confidence:
         lines.append("⚠ 신뢰도 낮음(데이터 누락)")
@@ -122,4 +155,7 @@ def _message_two(r: Report) -> str:
 
 
 def format_messages(report: Report, arrow_threshold: float = 20) -> list[str]:
-    return [_message_one(report, arrow_threshold), _message_two(report)]
+    msgs = [_message_one(report, arrow_threshold)]
+    if report.drivers:
+        msgs += [_reason_message(report, h, arrow_threshold) for h in HORIZON_KO]
+    return msgs + [_message_two(report)]

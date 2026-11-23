@@ -85,8 +85,10 @@ def test_dry_run_sends_nothing(tmp_path, monkeypatch, capsys):
 
 def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
-    assert rc == 0 and len(client.sent) == 2
+    assert rc == 0 and len(client.sent) == 5
     assert client.sent[0].startswith("[나스닥 방향성] 11/21(토) · 11/20 마감")
+    assert [m.splitlines()[0].split("]")[0] for m in client.sent[1:4]] == ["[단기 근거", "[중기 근거", "[장기 근거"]
+    assert "•" in client.sent[1]
 
 
 def test_core_data_failure_sends_error_message(tmp_path, monkeypatch):
@@ -96,9 +98,9 @@ def test_core_data_failure_sends_error_message(tmp_path, monkeypatch):
 
 def test_fred_missing_still_sends_with_warning(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch, md=_md(with_fred=False))
-    assert rc == 0 and len(client.sent) == 2
+    assert rc == 0 and len(client.sent) == 5
     assert "신뢰도 낮음" in client.sent[0]
-    assert "누락" in client.sent[1]
+    assert "누락" in client.sent[-1]
 
 
 def test_auth_error_returns_2(tmp_path, monkeypatch):
@@ -121,7 +123,7 @@ def test_history_write_failure_does_not_block_messages(tmp_path, monkeypatch):
         raise PermissionError("history.csv is open in Excel")
     monkeypatch.setattr(m, "append_history", locked)
     rc, client = _run(tmp_path, monkeypatch)
-    assert rc == 0 and len(client.sent) == 2
+    assert rc == 0 and len(client.sent) == 5
 
 
 def test_dry_run_does_not_write_history(tmp_path, monkeypatch):

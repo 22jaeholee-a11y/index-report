@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from .config import load_config
 from .data import DataSourceError, MarketData, collect_all
+from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
 from .message import Report, format_messages
@@ -47,6 +48,8 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         scores[h] = s
         probs[h] = cals[h].probabilities(s) if h in cals and not math.isnan(s) else None
     cats = sorted({ind["category"] for ind in cfg["indicators"].values()})
+    pct = last_percentiles(raw, cfg)
+    drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h) for h in cfg["horizons"]}
     report = Report(
         as_of=md.as_of, run_date=run_date, market_closed=is_market_closed(md.as_of, run_date),
         scores=scores, probs=probs,
@@ -58,6 +61,7 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         low_confidence=any(float(last[f"{h}_missing"]) > cfg["low_confidence_missing"] for h in cfg["horizons"]),
         reauth_days=reauth_days,
         calibration_stale=stale,
+        drivers=drivers,
     )
     row = {"date": run_date.isoformat(), "as_of": md.as_of.isoformat()}
     row.update({f"raw_{k}": v for k, v in raw.iloc[-1].items()})
@@ -132,7 +136,8 @@ def main(argv: list[str] | None = None) -> int:
         reauth = client.days_until_reauth() if client else None
         report, row = build_report(cfg, md, run_date, reauth)
         deliver(format_messages(report, cfg["arrow_threshold"]))
-        log.info("sent: scores=%s missing=%s", report.scores, report.missing)
+        log.info("%s: scores=%s missing=%s", "dry-run" if args.dry_run else "sent",
+                 report.scores, report.missing)
     except Exception as e:  # 어떤 실패든 로그 + 오류 알림 (조용한 실패 금지)
         log.exception("run failed: %s", e)
         try:
