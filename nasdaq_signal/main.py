@@ -85,6 +85,7 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
         score_pct=score_pct,
         zone=zone,
         zone_rule=zone_rule,
+        page_url=cfg["kakao"].get("page_url"),
     )
     row = {"date": run_date.isoformat(), "as_of": md.as_of.isoformat()}
     row.update({f"raw_{k}": v for k, v in raw.iloc[-1].items()})

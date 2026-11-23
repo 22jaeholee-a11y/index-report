@@ -41,6 +41,7 @@ class Report:
     score_pct: dict[str, float] = field(default_factory=dict)  # 오늘 점수의 과거 분포 내 위치 (0~1)
     zone: ZoneInfo | None = None                    # 매수 구간 상태
     zone_rule: tuple[float, float] = (20, -20)      # (진입, 청산) 중기 점수 기준
+    page_url: str | None = None                     # 차트 페이지 주소 (지표 메시지 맨 끝)
 
 
 def _isnan(v) -> bool:
@@ -196,9 +197,10 @@ def _message_two(r: Report) -> str:
         lines.append((5, f"월요일 NQ선물 {r.nq_change * 100:+.1f}%"))
     if r.fear_greed is not None:
         lines.append((6, f"Fear & Greed Index {round(r.fear_greed)}"))
-    while len("\n".join(l for _, l in lines)) > MAX_LEN and len(lines) > 1:
+    tail = [r.page_url] if r.page_url else []   # 주소는 항상 맨 끝, 줄일 때도 빠지지 않음
+    while len("\n".join([l for _, l in lines] + tail)) > MAX_LEN and len(lines) > 1:
         lines.remove(max(lines, key=lambda x: x[0]))
-    return "\n".join(l for _, l in lines)
+    return "\n".join([l for _, l in lines] + tail)
 
 
 def format_messages(report: Report, arrow_threshold: float = 20, reasons: bool = True) -> list[str]:

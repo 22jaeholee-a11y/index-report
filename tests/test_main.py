@@ -246,3 +246,9 @@ def test_make_client_uses_encrypted_store_when_key_set(tmp_path, monkeypatch):
     monkeypatch.setenv("KAKAO_TOKEN_KEY", Fernet.generate_key().decode())
     c = m.make_client(cfg)
     assert isinstance(c.store, EncryptedFileTokenStore) and c.store.path.name == "kakao_tokens.enc"
+
+
+def test_footer_has_page_url_from_config(tmp_path, monkeypatch):
+    rc, client = _run(tmp_path, monkeypatch)
+    cfg = yaml.safe_load(open("config.yaml", encoding="utf-8"))
+    assert client.sent[-1].splitlines()[-1] == cfg["kakao"]["page_url"]

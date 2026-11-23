@@ -227,3 +227,18 @@ def test_zone_line_in_summary():
     for z, line in cases.items():
         m1, *_ = format_messages(_report(zone=z, zone_rule=(20, -20)))
         assert line in m1.splitlines()
+
+
+URL = "https://index-report-ten.vercel.app/#"
+
+
+def test_footer_ends_with_page_url():
+    _, m2 = format_messages(_report(page_url=URL))
+    assert m2.splitlines()[-1] == URL
+
+
+def test_page_url_kept_when_message_is_full():
+    missing = ["dgs10", "t10y2y", "bamlh0a0hym2", "nfci", "sahmrealtime", "gpr", "rsp", "vix3m", "oil", "fear_greed"]
+    _, m2 = format_messages(_report(missing=missing, reauth_days=3, nq_change=0.0123, run_date=date(2026, 11, 23),
+                                    calibration_stale=True, page_url=URL))
+    assert len(m2) <= 200 and m2.splitlines()[-1] == URL
