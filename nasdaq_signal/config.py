@@ -16,9 +16,15 @@ def load_config(path: str | Path = "config.yaml", apply_tuning: bool = True) -> 
     with open(path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
     if apply_tuning:
-        _merge_tuning(cfg, Path(cfg.get("tuning_file", "tuning.yaml")))
+        _merge_tuning(cfg, tuning_path(cfg, path))
     _validate(cfg)
     return cfg
+
+
+def tuning_path(cfg: dict, config_path: str | Path) -> Path:
+    """tuning.yaml 위치: 설정 파일과 같은 폴더 기준 (절대경로면 그대로)."""
+    p = Path(cfg.get("tuning_file", "tuning.yaml"))
+    return p if p.is_absolute() else Path(config_path).parent / p
 
 
 def _merge_tuning(cfg: dict, path: Path) -> None:

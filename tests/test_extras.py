@@ -48,7 +48,7 @@ def test_collect_all_puts_gpr_in_frame_and_fg_in_extras(monkeypatch):
     monkeypatch.setattr(extras, "fetch_gpr", lambda: pd.Series(50.0, index=idx, name="gpr"))
     monkeypatch.setattr(extras, "fetch_fear_greed", lambda: 72.0)
     monkeypatch.setattr(extras, "fetch_nq_futures_change", lambda: 0.008)
-    md = collect_all(load_config(), "2024-01-01")
+    md = collect_all(load_config(apply_tuning=False), "2024-01-01")
     assert md.frame["gpr"].iloc[-1] == 50.0
     assert md.extras == {"fear_greed": 72.0, "nq_change": 0.008}
     assert "gpr" not in md.missing
@@ -65,6 +65,6 @@ def test_collect_all_failed_gpr_and_fg_marked_missing(monkeypatch):
     monkeypatch.setattr(extras, "fetch_gpr", boom)
     monkeypatch.setattr(extras, "fetch_fear_greed", lambda: None)
     monkeypatch.setattr(extras, "fetch_nq_futures_change", lambda: None)
-    md = collect_all(load_config(), "2024-01-01")
+    md = collect_all(load_config(apply_tuning=False), "2024-01-01")
     assert "gpr" in md.missing and "fear_greed" in md.missing
     assert np.isnan(md.frame["gpr"].iloc[-1])

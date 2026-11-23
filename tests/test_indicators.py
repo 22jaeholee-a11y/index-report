@@ -9,7 +9,7 @@ SMALL = {"percentile_window": 100, "percentile_min_periods": 20}
 
 
 def _cfg():
-    cfg = load_config()
+    cfg = load_config(apply_tuning=False)
     cfg.update(SMALL)
     return cfg
 
@@ -33,7 +33,7 @@ def test_trend_200_definition():
 def test_missing_source_column_gives_nan_indicator():
     raw = compute_raw(_frame().drop(columns=["vix3m"]))
     assert raw["vix_term"].isna().all()
-    assert set(raw.columns) == set(load_config()["indicators"])
+    assert set(raw.columns) == set(load_config(apply_tuning=False)["indicators"])
 
 
 def test_percentile_signal_bounds():

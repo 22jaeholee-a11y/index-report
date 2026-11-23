@@ -16,7 +16,7 @@ def test_forward_labels():
 
 
 def test_calibration_uses_only_test_period(tmp_path):
-    cfg = load_config()
+    cfg = load_config(apply_tuning=False)
     cfg.update(percentile_window=100, percentile_min_periods=20)
     cfg["paths"]["calibration"] = str(tmp_path / "cal.json")
     idx = pd.bdate_range("2014-01-01", periods=1600)
@@ -38,7 +38,7 @@ def test_calibration_uses_only_test_period(tmp_path):
 
 def test_backtest_stores_config_fingerprint_and_missing(tmp_path):
     from nasdaq_signal.scoring import Calibration, config_fingerprint
-    cfg = load_config()
+    cfg = load_config(apply_tuning=False)
     cfg.update(percentile_window=100, percentile_min_periods=20)
     cfg["paths"]["calibration"] = str(tmp_path / "cal.json")
     idx = pd.bdate_range("2014-01-01", periods=900)

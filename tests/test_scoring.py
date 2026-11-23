@@ -7,7 +7,7 @@ from nasdaq_signal.scoring import Calibration, arrow, score_frame
 
 
 def _signals(value=1.0, n=3, nan_category=None):
-    cfg = load_config()
+    cfg = load_config(apply_tuning=False)
     idx = pd.bdate_range("2024-01-01", periods=n)
     out = {}
     for h in cfg["horizons"]:

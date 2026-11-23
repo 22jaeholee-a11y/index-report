@@ -13,13 +13,13 @@ def _write_modified(tmp_path, mutate):
 
 
 def test_loads_default_config():
-    cfg = load_config()
+    cfg = load_config(apply_tuning=False)
     assert cfg["horizons"]["mid"]["days"] == 63
     assert cfg["indicators"]["vix"]["horizons"]["mid"]["transform"] == "contrarian"
 
 
 def test_category_weights_sum_to_one_per_horizon():
-    cfg = load_config()
+    cfg = load_config(apply_tuning=False)
     for h in cfg["horizons"]:
         assert sum(w[h] for w in cfg["category_weights"].values()) == pytest.approx(1.0)
 
@@ -45,3 +45,11 @@ def test_rejects_non_bool_exclude(tmp_path):
     p = _write_modified(tmp_path, lambda c: c["indicators"]["curve"].update(horizons={"short": {"exclude": "yes"}}))
     with pytest.raises(ConfigError):
         load_config(p)
+
+
+def test_tuning_file_resolved_relative_to_config_dir(tmp_path):
+    base = yaml.safe_load(open("config.yaml", encoding="utf-8"))
+    base.pop("tuning_file", None)
+    (tmp_path / "c.yaml").write_text(yaml.safe_dump(base, allow_unicode=True), encoding="utf-8")
+    cfg = load_config(tmp_path / "c.yaml")   # tmp 폴더엔 tuning.yaml 없음 → 프로젝트의 tuning.yaml을 읽으면 안 됨
+    assert "short" not in (cfg["indicators"]["vix"].get("horizons") or {})

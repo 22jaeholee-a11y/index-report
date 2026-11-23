@@ -79,7 +79,7 @@ def main() -> None:
 
     from dotenv import load_dotenv
 
-    from .config import load_config
+    from .config import load_config, tuning_path
     from .data import collect_all
 
     sys.stdout.reconfigure(encoding="utf-8")
@@ -96,7 +96,7 @@ def main() -> None:
         "rule": f"train halves {cfg['backtest']['start']}..{cfg['backtest']['split']}, |IC|>={MIN_IC}, same sign",
         "overrides": build_overrides(cfg, decisions),
     }
-    path = Path(cfg.get("tuning_file", "tuning.yaml"))
+    path = tuning_path(cfg, "config.yaml")
     path.write_text(yaml.safe_dump(out, allow_unicode=True, sort_keys=True), encoding="utf-8")
     print(f"\n저장: {path} — 이제 python -m nasdaq_signal.backtest 로 검증 구간 성과를 확인하세요.")
 

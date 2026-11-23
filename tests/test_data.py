@@ -71,7 +71,7 @@ def test_collect_all_raises_when_ndx_empty(monkeypatch):
     monkeypatch.setattr(data, "fetch_prices", lambda start: pf)
     monkeypatch.setattr(data, "fetch_fred", lambda *a: _fred_frame(pf.index))
     with pytest.raises(DataSourceError):
-        collect_all(load_config(), "2024-01-01", include_extras=False)
+        collect_all(load_config(apply_tuning=False), "2024-01-01", include_extras=False)
 
 
 def test_collect_all_marks_failed_source_missing(monkeypatch):
@@ -81,7 +81,7 @@ def test_collect_all_marks_failed_source_missing(monkeypatch):
     def boom(*a):
         raise RuntimeError("fred down")
     monkeypatch.setattr(data, "fetch_fred", boom)
-    md = collect_all(load_config(), "2024-01-01", include_extras=False)
+    md = collect_all(load_config(apply_tuning=False), "2024-01-01", include_extras=False)
     assert "dgs10" in md.missing and "nfci" in md.missing
     assert md.frame["ndx"].iloc[-1] == pytest.approx(110)
     assert md.as_of == pf.index[-1].date()
@@ -92,7 +92,7 @@ def test_collect_all_marks_stale_column_missing(monkeypatch):
     pf.loc[pf.index[-7]:, "rsp"] = np.nan  # last valid value 7 business days before as_of
     monkeypatch.setattr(data, "fetch_prices", lambda start: pf)
     monkeypatch.setattr(data, "fetch_fred", lambda *a: _fred_frame(pf.index))
-    md = collect_all(load_config(), "2024-01-01", include_extras=False)
+    md = collect_all(load_config(apply_tuning=False), "2024-01-01", include_extras=False)
     assert "rsp" in md.missing
     assert np.isnan(md.frame["rsp"].iloc[-1])
     assert "spy" not in md.missing
@@ -104,7 +104,7 @@ def test_collect_all_tolerates_weekly_fred_gap(monkeypatch):
     ff.loc[ff.index[-8]:, "nfci"] = np.nan  # weekly series: 8 bdays old is normal (lag 5 + stale 5)
     monkeypatch.setattr(data, "fetch_prices", lambda start: pf)
     monkeypatch.setattr(data, "fetch_fred", lambda *a: ff)
-    md = collect_all(load_config(), "2024-01-01", include_extras=False)
+    md = collect_all(load_config(apply_tuning=False), "2024-01-01", include_extras=False)
     assert "nfci" not in md.missing
     assert md.frame["nfci"].iloc[-1] == 1.0
 
