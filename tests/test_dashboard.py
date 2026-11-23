@@ -101,7 +101,7 @@ def test_today_card_title_is_short():
 def test_mobile_and_synced_selection_elements(tmp_path):
     cfg = _cfg(tmp_path)
     html = render_html(build_history(cfg, _md(), days=30), generated="x")
-    assert 'id="selbar"' in html and "최신으로" in html     # 선택 날짜 고정 막대
+    assert 'id="selbar"' in html and "최신으로" not in html   # 선택 날짜 막대 (해제 버튼 없음: 차트 밖 탭으로 해제)
     assert "touch-action" in html                            # 모바일 가로 스크럽
     assert "position: sticky" in html                        # 탭·선택 막대 고정
     assert 'class="tip"' not in html                         # 떠다니는 말풍선 대신 고정 표시

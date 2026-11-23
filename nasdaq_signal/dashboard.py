@@ -234,7 +234,6 @@ th { color: var(--text-secondary); font-weight: 600; }
   <div role="tabpanel" id="panel-chart" aria-labelledby="tab-chart" hidden>
   <div class="selbar" id="selbar" aria-live="polite">
     <span><b id="sel-date"></b> <span class="flags" id="sel-flags"></span></span>
-    <button id="sel-reset" hidden>최신으로</button>
   </div>
   <div class="bar" role="group" aria-label="기간">
     <button data-n="21" aria-pressed="true">1개월</button><button data-n="63">3개월</button><button data-n="126">6개월</button>
@@ -245,7 +244,7 @@ th { color: var(--text-secondary); font-weight: 600; }
   <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 2005년 이후 실제 결과로 계산 · 50% 기준선</p><div class="chart" id="c-up"></div></section>
   <section class="card"><h2>카테고리 점수 (중기)</h2><p>-1 ~ +1 · 카테고리 안 지표 신호의 평균</p><div class="chart" id="c-cat"></div></section>
   <details><summary>표로 보기 (최근 30일)</summary><div class="tbl" id="table"></div></details>
-  <p class="note">차트를 누르거나 좌우로 밀면 4개 차트가 같은 날짜로 맞춰지고 값이 위에 표시됩니다.
+  <p class="note">차트를 누르거나 좌우로 밀면 4개 차트가 같은 날짜로 맞춰지고 값이 위에 표시됩니다. 차트 밖을 누르면 최신 날짜로 돌아갑니다.
   회색 음영은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
   당시 실제로 받았을 메시지보다 잘 맞아 보일 수 있습니다.</p>
   </div>
@@ -301,7 +300,6 @@ th { color: var(--text-secondary); font-weight: 600; }
     document.getElementById("sel-date").textContent = `${r.date} (${WD[dt.getDay()]})`;
     const flags = [SEL == null ? "최신" : "", r.zone ? "매수 구간" : "", r.live ? "발송" : ""].filter(Boolean);
     document.getElementById("sel-flags").textContent = flags.join(" · ");
-    document.getElementById("sel-reset").hidden = SEL == null;
   }
 
   function draw(cfg, rows) {
@@ -367,7 +365,7 @@ th { color: var(--text-secondary); font-weight: 600; }
     // 선택 표시: 세로선 + 점 (4개 차트 공통 날짜)
     const vline = el("line", { y1: m.t, y2: m.t + ih, stroke: css("--text-secondary"), "stroke-width": 1, visibility: "hidden" }, svg);
     const dots = cfg.series.map(s => el("circle", { r: narrow ? 5 : 4.5, fill: css(s.color), stroke: css("--surface-1"), "stroke-width": 2, visibility: "hidden" }, svg));
-    const hit = el("rect", { x: m.l - 6, y: 0, width: iw + 12, height: H, fill: "transparent", style: "touch-action: pan-y; cursor: crosshair" }, svg);
+    const hit = el("rect", { x: m.l - 6, y: 0, width: iw + 12, height: H, fill: "transparent", "data-hit": "1", style: "touch-action: pan-y; cursor: crosshair" }, svg);
 
     const idxAt = evt => { const box = svg.getBoundingClientRect(), px = (evt.clientX - box.left) * (W / box.width);
       return Math.round((px - m.l) / iw * (rows.length - 1)); };
@@ -417,7 +415,17 @@ th { color: var(--text-secondary); font-weight: 600; }
     const j = keep ? ROWS.findIndex(r => r.date === keep) : -1;
     setSel(j >= 0 ? j : null, j >= 0 ? LOCK : false);
   }
-  document.getElementById("sel-reset").addEventListener("click", () => setSel(null, false));
+  // 차트(그래프 영역) 밖을 '탭'하면 선택 해제 → 최신 날짜로. 스크롤(손가락 이동)과 기간 버튼은 해제하지 않음
+  let outside = null;
+  document.addEventListener("pointerdown", e => {
+    outside = (e.target.closest && (e.target.closest("[data-hit]") || e.target.closest(".bar"))) ? null : { x: e.clientX, y: e.clientY };
+  });
+  document.addEventListener("pointerup", e => {
+    if (outside && Math.abs(e.clientX - outside.x) < 8 && Math.abs(e.clientY - outside.y) < 8 && SEL != null &&
+        !document.getElementById("panel-chart").hidden) setSel(null, false);
+    outside = null;
+  });
+  document.addEventListener("pointercancel", () => { outside = null; });
   document.querySelectorAll(".bar button").forEach(b => b.addEventListener("click", () => {
     document.querySelectorAll(".bar button").forEach(o => o.setAttribute("aria-pressed", "false"));
     b.setAttribute("aria-pressed", "true"); N = +b.dataset.n; render(); }));
