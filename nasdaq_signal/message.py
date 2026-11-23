@@ -13,7 +13,7 @@ WEEKDAYS = "월화수목금토일"
 HORIZON_KO = {"short": "단기", "mid": "중기", "long": "장기"}
 CATEGORY_KO = {"market": "시장", "sentiment": "심리", "geo": "지정학", "macro": "매크로"}
 MISSING_KO = {
-    "fear_greed": "공포탐욕", "dgs10": "10년물", "dgs2": "2년물", "t10yie": "기대인플레", "t10y2y": "장단기차", "bamlh0a0hym2": "HY스프레드",
+    "fear_greed": "Fear & Greed Index","dgs10": "10년물", "dgs2": "2년물", "t10yie": "기대인플레", "t10y2y": "장단기차", "bamlh0a0hym2": "HY스프레드",
     "nfci": "금융여건", "sahmrealtime": "삼법칙", "gpr": "GPR", "ndx": "NDX", "spy": "SPY", "rsp": "RSP",
     "vix": "VIX", "vix3m": "VIX3M", "hyg": "HYG", "ief": "IEF", "oil": "유가", "gold": "금", "dxy": "달러",
 }
@@ -156,7 +156,7 @@ def _message_two(r: Report) -> str:
     if r.nq_change is not None and r.run_date.weekday() == 0:
         lines.append((5, f"월요일 NQ선물 {r.nq_change * 100:+.1f}%"))
     if r.fear_greed is not None:
-        lines.append((6, f"공포탐욕 {round(r.fear_greed)}(참고)"))
+        lines.append((6, f"Fear & Greed Index {round(r.fear_greed)}"))
     while len("\n".join(l for _, l in lines)) > MAX_LEN and len(lines) > 1:
         lines.remove(max(lines, key=lambda x: x[0]))
     return "\n".join(l for _, l in lines)

@@ -56,11 +56,11 @@ def test_message_two_layout():
         "심리 +0.1\n"
         "지정학 -0.2\n"
         "매크로 +0.3\n"
-        "⚠ 누락: 공포탐욕\n"
+        "⚠ 누락: Fear & Greed Index\n"
         "VIX 14.2\n"
         "10년물 4.21%\n"
         "HY 3.10%\n"
-        "공포탐욕 72(참고)"
+        "Fear & Greed Index 72"
     )
 
 
