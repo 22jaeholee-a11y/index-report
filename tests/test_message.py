@@ -255,7 +255,8 @@ def test_single_message_layout():
         "[NASDAQ] 11/23(월)\n"
         "단기 ▲ 상승 55 · 횡보 30 · 하락 15\n"
         "중기 ─ 상승 38 · 횡보 40 · 하락 22\n"
-        "매수 구간 D+20 (10/23 신호 후 -14.5%)\n"
+        "매수 구간 D+20\n"
+        "(10/23 신호 후 -14.5%)\n"
         "\n"
         "10년물 5.04%\n"
         "HY 3.52%\n"
@@ -269,12 +270,12 @@ def test_single_message_zone_states_and_limit():
     from nasdaq_signal.message import format_single
     from nasdaq_signal.zone import ZoneInfo
     lines = {
-        ZoneInfo("entry", date(2026, 11, 20), 0, None, 23.0): "매수 구간 진입 신호 (중기 +23)",
-        ZoneInfo("exit", date(2026, 10, 26), 30, 0.052, -22.0): "매수 구간 청산 신호 (신호 후 +5.2%)",
-        ZoneInfo("wait", None, 0, None, 5.0): "매수 구간 대기 (중기 +5 / 진입 +20)",
+        ZoneInfo("entry", date(2026, 11, 20), 0, None, 23.0): "매수 구간 진입 신호\n(중기 +23)",
+        ZoneInfo("exit", date(2026, 10, 26), 30, 0.052, -22.0): "매수 구간 청산 신호\n(신호 후 +5.2%)",
+        ZoneInfo("wait", None, 0, None, 5.0): "매수 구간 대기\n(중기 +5 / 진입 +20)",
     }
     for z, line in lines.items():
-        assert line in format_single(_report(zone=z)).splitlines()
+        assert line in format_single(_report(zone=z))   # 상태 다음 줄에 괄호 설명
     full = _report(missing=["dgs10", "t10y2y", "bamlh0a0hym2", "gpr", "rsp", "vix3m", "oil", "fear_greed", "x" * 30],
                    reauth_days=3, low_confidence=True, calibration_stale=True, nq_change=0.01, fear_greed=10.0,
                    zone=ZoneInfo("hold", date(2026, 10, 23), 20, -0.145, 49.0))

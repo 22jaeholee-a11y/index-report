@@ -214,14 +214,14 @@ def format_messages(report: Report, arrow_threshold: float = 20, reasons: bool =
 
 
 def _zone_line_single(z: ZoneInfo, rule: tuple[float, float]) -> str:
-    entry, _ = rule
+    entry, _ = rule   # 상태 다음 줄에 괄호 설명
     if z.status == "entry":
-        return f"매수 구간 진입 신호 (중기 {_score(z.score)})"
+        return f"매수 구간 진입 신호\n(중기 {_score(z.score)})"
     if z.status == "hold":
-        return f"매수 구간 D+{z.days} ({_md(z.since)} 신호 후 {z.ret:+.1%})"
+        return f"매수 구간 D+{z.days}\n({_md(z.since)} 신호 후 {z.ret:+.1%})"
     if z.status == "exit":
-        return f"매수 구간 청산 신호 (신호 후 {z.ret:+.1%})"
-    return f"매수 구간 대기 (중기 {_score(z.score)} / 진입 {_score(entry)})"
+        return f"매수 구간 청산 신호\n(신호 후 {z.ret:+.1%})"
+    return f"매수 구간 대기\n(중기 {_score(z.score)} / 진입 {_score(entry)})"
 
 
 def format_single(r: Report, arrow_threshold: float = 20) -> str:
