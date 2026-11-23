@@ -261,3 +261,11 @@ def test_today_drivers_include_day_changes(tmp_path, monkeypatch):
     assert t["mid"]["score_prev"] is not None
     d = t["mid"]["drivers"][0]
     assert d.prev_value == d.prev_value and d.prev_points == d.prev_points   # NaN 아님
+
+
+def test_main_downloads_from_data_start(tmp_path, monkeypatch):
+    starts = []
+    monkeypatch.setattr(m, "collect_all", lambda cfg, start, **k: (starts.append(start), _md())[1])
+    monkeypatch.setattr(m, "make_client", lambda cfg: FakeClient())
+    m.main(["--config", _cfg_path(tmp_path), "--run-date", "2026-11-21", "--dry-run"])
+    assert starts == [yaml.safe_load(open("config.yaml", encoding="utf-8"))["data_start"]]

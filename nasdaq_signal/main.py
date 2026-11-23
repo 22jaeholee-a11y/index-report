@@ -171,7 +171,8 @@ def main(argv: list[str] | None = None) -> int:
                 client.send_text(t, link)
 
     try:
-        start = (run_date - timedelta(days=365 * HISTORY_YEARS)).isoformat()
+        # 차트 30년 표시를 위해 오래전부터 받음 (오늘 점수는 최근 5년 창만 쓰므로 결과 동일)
+        start = cfg.get("data_start") or (run_date - timedelta(days=365 * HISTORY_YEARS)).isoformat()
         md = collect_all(cfg, start)
         reauth = client.days_until_reauth() if client else None
         report, row = build_report(cfg, md, run_date, reauth)

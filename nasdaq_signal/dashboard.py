@@ -20,7 +20,8 @@ from .zone import zone_states
 CATEGORIES = ("market", "sentiment", "geo", "macro")
 
 
-def build_history(cfg: dict, md: MarketData, days: int = 750) -> pd.DataFrame:
+def build_history(cfg: dict, md: MarketData, days: int | None = None) -> pd.DataFrame:
+    """days가 None이면 cfg['dashboard_start'](기본 1996-01-01)부터."""
     raw = mask_missing(compute_raw(md.frame), md.missing)
     sf = score_frame(to_signals(raw, cfg), cfg)
     cal_path = cfg["paths"]["calibration"]
@@ -49,7 +50,9 @@ def build_history(cfg: dict, md: MarketData, days: int = 750) -> pd.DataFrame:
     out["live"] = [d.date().isoformat() in live_dates for d in out.index]
     z = cfg.get("zone", {"entry": 20, "exit": -20})
     out["zone"] = zone_states(sf["mid_score"], z["entry"], z["exit"]).astype(bool)  # 전체 기간으로 계산 후 자름
-    return out.iloc[-days:]
+    if days is not None:
+        return out.iloc[-days:]
+    return out[out.index >= pd.Timestamp(cfg.get("dashboard_start", "1996-01-01"))]
 
 
 def _rows(h: pd.DataFrame) -> list[dict]:
@@ -111,7 +114,7 @@ def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")
     load_dotenv(".env")
     cfg = load_config()
-    md = collect_all(cfg, (pd.Timestamp.today() - pd.DateOffset(years=7)).date().isoformat())
+    md = collect_all(cfg, cfg.get("data_start", "1990-01-01"))
     from .main import build_report, today_drivers  # 순환 import 방지
 
     report, _ = build_report(cfg, md, datetime.now().date(), None)
@@ -244,7 +247,7 @@ th { color: var(--text-secondary); font-weight: 600; }
   </div>
   <div class="bar" role="group" aria-label="기간">
     <button data-n="21" aria-pressed="true">1개월</button><button data-n="63">3개월</button><button data-n="126">6개월</button>
-    <button data-n="252">1년</button><button data-n="0">전체</button>
+    <button data-n="252">1년</button><button data-n="1260">5년</button><button data-n="0">전체</button>
   </div>
   <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
   <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · (상승 n%) = 그 점수대의 2005년 이후 실제 상승 비율 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
@@ -252,7 +255,8 @@ th { color: var(--text-secondary); font-weight: 600; }
   <details><summary>표로 보기 (최근 30일)</summary><div class="tbl" id="table"></div></details>
   <p class="note">차트를 누르거나 좌우로 밀면 모든 차트가 같은 날짜로 맞춰지고 값이 위에 표시됩니다. 차트 밖을 누르면 최신 날짜로 돌아갑니다.
   회색 음영은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
-  당시 실제로 받았을 메시지보다 잘 맞아 보일 수 있습니다.</p>
+  당시 실제로 받았을 메시지보다 잘 맞아 보일 수 있습니다. 2007년 이전에는 일부 지표(시장 폭 2003~, VIX3M·신용 2007~)가 없어
+  남은 지표로만 계산했습니다.</p>
   </div>
   <p class="note">투자 판단의 참고 자료일 뿐 예측을 보장하지 않습니다.</p>
 </main>
@@ -272,7 +276,8 @@ th { color: var(--text-secondary); font-weight: 600; }
   document.getElementById("sub").textContent = `${last.date} 마감 기준 · 생성 ${DATA.generated}`;
 
   const CHARTS = [
-    { id: "c-ndx", zone: true, series: [{ key: "ndx", name: "나스닥100", color: "--s1" }], fmt: v => v.toLocaleString("ko-KR", { maximumFractionDigits: 0 }) },
+    { id: "c-ndx", zone: true, logIfWide: true, series: [{ key: "ndx", name: "나스닥100", color: "--s1" }],
+      fmt: v => (Math.abs(v) < 0.5 ? 0 : v).toLocaleString("ko-KR", { maximumFractionDigits: 0 }) },
     { id: "c-score", zone: true, domain: [-100, 100], ticks: [-100, -50, 0, 50, 100], ref: 0,
       series: [{ key: "short_score", name: "단기", color: "--s1", extra: "short_up" }, { key: "mid_score", name: "중기", color: "--s2", extra: "mid_up" }],
       fmt: v => { const r = Math.round(v); return r > 0 ? "+" + r : String(r === 0 ? 0 : r); } },
@@ -284,6 +289,14 @@ th { color: var(--text-secondary); font-weight: 600; }
   // 값이 하나도 없는 계열(예: 점수에서 뺀 카테고리)은 그리지 않음
   const ACTIVE = CHARTS.map(c => ({ ...c, series: c.series.filter(s => ALL.some(r => r[s.key] != null)) }));
 
+  // 로그 눈금: 1·2·5 × 10^k 중 범위 안의 값
+  function logTicks(lo, hi, n) {
+    const t = [];
+    for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
+      for (const m of [1, 2, 5]) { const v = m * Math.pow(10, e); if (v >= lo && v <= hi) t.push(v); }
+    while (t.length > n + 1) { const k = t.filter((_, i) => i % 2 === 0); if (k.length === t.length) break; t.splice(0, t.length, ...k); }
+    return t;
+  }
   function niceTicks(lo, hi, n) {
     const span = hi - lo || 1, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
     const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= step0);
@@ -319,11 +332,14 @@ th { color: var(--text-secondary); font-weight: 600; }
     if (cfg.domain) { [lo, hi] = cfg.domain; ticks = narrow ? cfg.ticks.filter((_, k) => k % 2 === 0) : cfg.ticks; }
     else {
       const vals = rows.flatMap(r => cfg.series.map(s => r[s.key])).filter(v => v != null);
-      lo = Math.min(...vals); hi = Math.max(...vals); const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad;
-      ticks = niceTicks(lo, hi, narrow ? 3 : 4);
+      lo = Math.min(...vals); hi = Math.max(...vals);
+      var log = cfg.logIfWide && lo > 0 && hi / lo > 4;   // 30년처럼 수십 배 오른 구간은 로그 눈금 (같은 % 변화 = 같은 높이)
+      if (log) { lo /= 1.08; hi *= 1.08; ticks = logTicks(lo, hi, narrow ? 3 : 5); }
+      else { const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad; ticks = niceTicks(lo, hi, narrow ? 3 : 4); }
     }
     const x = i => m.l + (rows.length <= 1 ? iw / 2 : (i / (rows.length - 1)) * iw);
-    const y = v => m.t + (1 - (v - lo) / (hi - lo)) * ih;
+    const y = log ? (v => m.t + (1 - (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * ih)
+                  : (v => m.t + (1 - (v - lo) / (hi - lo)) * ih);
     const step = iw / Math.max(rows.length - 1, 1);
 
     if (cfg.zone) {   // 매수 구간 배경 (연속 구간을 하나의 띠로)
@@ -424,12 +440,23 @@ th { color: var(--text-secondary); font-weight: 600; }
     } };
   }
 
+  // 긴 기간(5년·전체)은 약 1500개 지점으로 줄여 그림 — 휴대폰에서도 가볍게. 매수 구간·발송일은 줄인 구간 안에 하나라도 있으면 표시
+  function thin(rows, max) {
+    if (rows.length <= max) return rows;
+    const k = Math.ceil(rows.length / max), out = [];
+    for (let i = rows.length - 1; i >= 0; i -= k) {   // 최신 날짜가 반드시 포함되도록 끝에서부터
+      const grp = rows.slice(Math.max(0, i - k + 1), i + 1);
+      out.push({ ...rows[i], zone: grp.some(r => r.zone), live: grp.some(r => r.live) });
+    }
+    return out.reverse();
+  }
   function render() {
     const keep = SEL == null ? null : ROWS[SEL] && ROWS[SEL].date;   // 기간을 바꿔도 같은 날짜 유지
-    ROWS = N ? ALL.slice(-N) : ALL;
+    ROWS = thin(N ? ALL.slice(-N) : ALL, 1500);
     DRAWN.length = 0;
     ACTIVE.forEach(c => DRAWN.push(draw(c, ROWS)));
-    const j = keep ? ROWS.findIndex(r => r.date === keep) : -1;
+    let j = keep ? ROWS.findIndex(r => r.date === keep) : -1;
+    if (keep && j < 0) j = ROWS.findIndex(r => r.date >= keep);   // 줄인 구간에서는 가장 가까운 다음 날짜
     setSel(j >= 0 ? j : null, j >= 0 ? LOCK : false);
   }
   // 차트(그래프 영역) 밖을 '탭'하면 선택 해제 → 최신 날짜로. 스크롤(손가락 이동)과 기간 버튼은 해제하지 않음

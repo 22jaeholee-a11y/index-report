@@ -162,3 +162,22 @@ def test_probability_chart_removed_and_shown_in_score_readout(tmp_path):
     html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
     assert 'id="c-up"' not in html and "<h2>상승 확률 (%)</h2>" not in html
     assert 'extra: "short_up"' in html and 'extra: "mid_up"' in html   # 점수 값 옆에 (상승 n%)
+
+
+def test_history_starts_at_dashboard_start(tmp_path):
+    cfg = _cfg(tmp_path)
+    cfg["dashboard_start"] = "2025-09-01"
+    h = build_history(cfg, _md(), days=None)
+    assert h.index[0] >= pd.Timestamp("2025-09-01") and h.index[0] < pd.Timestamp("2025-09-10")
+
+
+def test_long_range_buttons_and_thinning(tmp_path):
+    html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
+    assert '<button data-n="1260">5년</button>' in html
+    assert "function thin(" in html
+
+
+def test_index_chart_uses_log_scale_for_long_ranges():
+    src = open("nasdaq_signal/dashboard.py", encoding="utf-8").read()
+    assert '{ id: "c-ndx", zone: true, logIfWide: true' in src
+    assert "function logTicks(" in src
