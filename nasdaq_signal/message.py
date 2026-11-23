@@ -36,6 +36,7 @@ class Report:
     reauth_days: int | None
     calibration_stale: bool = False
     drivers: dict[str, list[Driver]] = field(default_factory=dict)
+    unpredicted: set[str] = field(default_factory=set)  # 예측하지 않고 역사적 평균만 보여주는 기간
 
 
 def _isnan(v) -> bool:
@@ -105,6 +106,13 @@ def _message_one(r: Report, threshold: float) -> str:
     lines = [f"[나스닥 방향성] {day} · {tail}"]
     for h, ko in HORIZON_KO.items():
         s = r.scores.get(h)
+        p = r.probs.get(h)
+        if h in r.unpredicted:
+            if p:
+                lines.append(f"{ko} {_prob_arrow(p)} 상승 {p[0]} · 횡보 {p[1]} · 하락 {p[2]} (역사적 평균, 예측 신호 없음)")
+            else:
+                lines.append(f"{ko} 예측 신호 없음")
+            continue
         if _isnan(s):
             lines.append(f"{ko} 계산 불가")
             continue
@@ -157,5 +165,5 @@ def _message_two(r: Report) -> str:
 def format_messages(report: Report, arrow_threshold: float = 20) -> list[str]:
     msgs = [_message_one(report, arrow_threshold)]
     if report.drivers:
-        msgs += [_reason_message(report, h, arrow_threshold) for h in HORIZON_KO]
+        msgs += [_reason_message(report, h, arrow_threshold) for h in HORIZON_KO if h not in report.unpredicted]
     return msgs + [_message_two(report)]

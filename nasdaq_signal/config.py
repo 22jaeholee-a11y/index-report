@@ -44,6 +44,9 @@ def _merge_tuning(cfg: dict, path: Path) -> None:
 def _validate(cfg: dict) -> None:
     horizons = cfg["horizons"]
     weights = cfg["category_weights"]
+    for h, spec in horizons.items():
+        if "predict" in spec and not isinstance(spec["predict"], bool):
+            raise ConfigError(f"horizon '{h}': predict must be true/false")
     for h in horizons:
         total = sum(w.get(h, 0.0) for w in weights.values())
         if abs(total - 1.0) > 1e-6:

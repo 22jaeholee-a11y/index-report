@@ -47,3 +47,17 @@ def test_backtest_stores_config_fingerprint_and_missing(tmp_path):
     run_backtest(cfg, frame, missing=["dgs10"])
     meta = Calibration.load_meta(cfg["paths"]["calibration"])
     assert meta == {"config": config_fingerprint(cfg), "missing": ["dgs10"]}
+
+
+def test_backtest_stores_historical_base_rates(tmp_path):
+    from nasdaq_signal.scoring import base_probabilities
+    cfg = load_config(apply_tuning=False)
+    cfg.update(percentile_window=100, percentile_min_periods=20)
+    cfg["paths"]["calibration"] = str(tmp_path / "cal.json")
+    idx = pd.bdate_range("2014-01-01", periods=900)
+    cfg["backtest"] = {"start": str(idx[0].date()), "split": str(idx[400].date()), "bucket": 20}
+    frame = pd.DataFrame({"ndx": np.linspace(100, 300, len(idx))}, index=idx)  # 꾸준히 상승
+    run_backtest(cfg, frame)
+    base = base_probabilities(cfg["paths"]["calibration"])
+    assert base["long"] == (100, 0, 0)
+    assert sum(base["short"]) == 100

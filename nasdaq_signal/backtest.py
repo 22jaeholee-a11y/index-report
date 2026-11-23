@@ -40,9 +40,11 @@ def run_backtest(cfg: dict, frame: pd.DataFrame, missing: list[str] | tuple = ()
     start, split = pd.Timestamp(bt["start"]), pd.Timestamp(bt["split"])
     ndx = frame["ndx"]
     result: dict = {"train": {}, "test": {}}
-    cals = {}
+    cals, base = {}, {}
     for h, spec in cfg["horizons"].items():
         label = forward_labels(ndx, spec["days"], spec["up"], spec["down"])
+        hist = label[label.index >= start].dropna()
+        base[h] = [int((hist == k).sum()) for k in ("up", "flat", "down")] + [int(len(hist))]
         fwd = ndx.shift(-spec["days"]) / ndx - 1
         s = scores[f"{h}_score"]
         train = (s.index >= start) & (s.index < split)
@@ -51,7 +53,7 @@ def run_backtest(cfg: dict, frame: pd.DataFrame, missing: list[str] | tuple = ()
         result["test"][h] = _stats(s[test], label[test], fwd[test], cfg["arrow_threshold"])
         cals[h] = Calibration.from_backtest(s[test], label[test], bt["bucket"])
     Calibration.save_all(cals, cfg["paths"]["calibration"],
-                         meta={"config": config_fingerprint(cfg), "missing": list(missing)})
+                         meta={"config": config_fingerprint(cfg), "missing": list(missing)}, base=base)
     return result
 
 

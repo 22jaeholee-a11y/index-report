@@ -38,3 +38,18 @@ def test_load_config_merges_tuning_file(tmp_path):
     assert cfg["indicators"]["curve"]["horizons"]["short"] == {"exclude": True}
     raw = load_config(tmp_path / "c.yaml", apply_tuning=False)
     assert "short" not in (raw["indicators"]["curve"].get("horizons") or {})
+
+
+def test_compute_ics_skips_unpredicted_horizon():
+    import numpy as np
+    import pandas as pd
+    from nasdaq_signal.tune import compute_ics
+    cfg = load_config(apply_tuning=False)
+    cfg.update(percentile_window=100, percentile_min_periods=20)
+    cfg["horizons"]["long"]["predict"] = False
+    idx = pd.bdate_range("2014-01-01", periods=1200)
+    cfg["backtest"] = {"start": str(idx[0].date()), "split": str(idx[900].date()), "bucket": 20}
+    frame = pd.DataFrame({"ndx": 100 + np.random.default_rng(0).normal(0, 1, len(idx)).cumsum()}, index=idx)
+    a, b = compute_ics(cfg, frame)
+    assert not any(h == "long" for h, _ in a)
+    assert any(h == "short" for h, _ in a)

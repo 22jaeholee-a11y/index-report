@@ -165,3 +165,11 @@ def test_reason_line_describes_current_side():
     high = describe(Driver("trend_50", 0.08, 0.95, -7.0, -1, False))
     assert "50일선 아래 이탈 → 과거엔 이후 상승" in low
     assert "50일선 위 과열 → 과거엔 이후 하락" in high
+
+
+def test_unpredicted_horizon_shows_historical_average_and_no_reason_message():
+    r = _report(drivers=_drivers(), unpredicted={"long"}, probs={"short": (55, 30, 15), "mid": (38, 40, 22), "long": (76, 13, 11)})
+    msgs = format_messages(r)
+    assert len(msgs) == 4
+    assert msgs[0].splitlines()[3] == "장기 ▲ 상승 76 · 횡보 13 · 하락 11 (역사적 평균, 예측 신호 없음)"
+    assert not any(m.startswith("[장기 근거]") for m in msgs)

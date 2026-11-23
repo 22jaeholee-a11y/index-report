@@ -18,7 +18,7 @@ from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
 from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
 from .message import Report, format_messages
-from .scoring import Calibration, score_frame
+from .scoring import Calibration, base_probabilities, score_frame
 
 log = logging.getLogger("nasdaq_signal")
 KST = timezone(timedelta(hours=9))  # 한국은 서머타임 없음
@@ -42,14 +42,20 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
     cal_path = cfg["paths"]["calibration"]
     stale = not Calibration.is_valid_for(Calibration.load_meta(cal_path), cfg)
     cals = {} if stale else (Calibration.load_all(cal_path) or {})
+    unpredicted = {h for h, spec in cfg["horizons"].items() if spec.get("predict", True) is False}
+    base = {} if stale else base_probabilities(cal_path)
     scores, probs = {}, {}
     for h in cfg["horizons"]:
         s = float(last[f"{h}_score"])
         scores[h] = s
-        probs[h] = cals[h].probabilities(s) if h in cals and not math.isnan(s) else None
+        if h in unpredicted:  # 검증된 예측 신호가 없는 기간: 점수 대신 역사적 기본 비율
+            probs[h] = base.get(h)
+        else:
+            probs[h] = cals[h].probabilities(s) if h in cals and not math.isnan(s) else None
+    predicted = [h for h in cfg["horizons"] if h not in unpredicted]
     cats = sorted({ind["category"] for ind in cfg["indicators"].values()})
     pct = last_percentiles(raw, cfg)
-    drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h) for h in cfg["horizons"]}
+    drivers = {h: top_drivers(signals[h].iloc[-1], raw.iloc[-1], pct, cfg, h) for h in predicted}
     report = Report(
         as_of=md.as_of, run_date=run_date, market_closed=is_market_closed(md.as_of, run_date),
         scores=scores, probs=probs,
@@ -58,10 +64,11 @@ def build_report(cfg: dict, md: MarketData, run_date: date, reauth_days: int | N
                     "hy_spread": _last(md.frame, "bamlh0a0hym2")},
         fear_greed=md.extras.get("fear_greed"), nq_change=md.extras.get("nq_change"),
         missing=list(md.missing),
-        low_confidence=any(float(last[f"{h}_missing"]) > cfg["low_confidence_missing"] for h in cfg["horizons"]),
+        low_confidence=any(float(last[f"{h}_missing"]) > cfg["low_confidence_missing"] for h in predicted),
         reauth_days=reauth_days,
         calibration_stale=stale,
         drivers=drivers,
+        unpredicted=unpredicted,
     )
     row = {"date": run_date.isoformat(), "as_of": md.as_of.isoformat()}
     row.update({f"raw_{k}": v for k, v in raw.iloc[-1].items()})

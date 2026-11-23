@@ -60,6 +60,8 @@ def compute_ics(cfg: dict, frame: pd.DataFrame) -> tuple[dict, dict]:
     ndx = frame["ndx"]
     ic_a, ic_b = {}, {}
     for h, spec in cfg["horizons"].items():
+        if spec.get("predict", True) is False:  # 예측하지 않는 기간은 튜닝 대상 아님
+            continue
         days = spec["days"]
         fwd = ndx.shift(-days) / ndx - 1
         idx = sig[h].index

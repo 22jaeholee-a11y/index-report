@@ -64,6 +64,23 @@ def arrow(score: float, threshold: float = 20) -> str:
     return "─"
 
 
+def _percentages(c: list[int]) -> tuple[int, int, int]:
+    """[up, flat, down, n] → 합이 100인 정수 백분율 (최대 잉여 방식)."""
+    raw = [x * 100 / c[3] for x in c[:3]]
+    floors = [math.floor(x) for x in raw]
+    for i in sorted(range(3), key=lambda i: raw[i] - floors[i], reverse=True)[: 100 - sum(floors)]:
+        floors[i] += 1
+    return tuple(floors)  # type: ignore[return-value]
+
+
+def base_probabilities(path: str | Path) -> dict[str, tuple[int, int, int]]:
+    p = Path(path)
+    if not p.exists():
+        return {}
+    base = json.loads(p.read_text(encoding="utf-8")).get("_base") or {}
+    return {h: _percentages(c) for h, c in base.items() if c and c[3] > 0}
+
+
 def _bucket_key(score: float, bucket: int) -> int:
     k = math.floor(score / bucket) * bucket
     return int(min(max(k, -100), 100 - bucket))
@@ -90,19 +107,17 @@ class Calibration:
         c = self.counts.get(_bucket_key(score, self.bucket))
         if not c or c[3] < MIN_SAMPLES:
             return None
-        raw = [x * 100 / c[3] for x in c[:3]]
-        floors = [math.floor(x) for x in raw]
-        # 최대 잉여 방식으로 합을 100에 맞춤
-        for i in sorted(range(3), key=lambda i: raw[i] - floors[i], reverse=True)[: 100 - sum(floors)]:
-            floors[i] += 1
-        return tuple(floors)  # type: ignore[return-value]
+        return _percentages(c)
 
     @staticmethod
-    def save_all(cals: dict[str, "Calibration"], path: str | Path, meta: dict | None = None) -> None:
+    def save_all(cals: dict[str, "Calibration"], path: str | Path, meta: dict | None = None,
+                 base: dict[str, list[int]] | None = None) -> None:
+        """base: 기간별 역사적 기본 비율 [up, flat, down, n] (점수와 무관한 전체 표본)."""
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         payload: dict = {h: {str(k): v for k, v in sorted(c.counts.items())} for h, c in cals.items()}
         payload["_bucket"] = next(iter(cals.values())).bucket if cals else 20
         payload["_meta"] = meta
+        payload["_base"] = base
         Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
 
     @staticmethod
@@ -113,6 +128,7 @@ class Calibration:
         payload = json.loads(p.read_text(encoding="utf-8"))
         bucket = payload.pop("_bucket", 20)
         payload.pop("_meta", None)
+        payload.pop("_base", None)
         return {h: Calibration({int(k): v for k, v in d.items()}, bucket) for h, d in payload.items()}
 
     @staticmethod

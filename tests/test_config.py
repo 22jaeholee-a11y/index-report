@@ -53,3 +53,11 @@ def test_tuning_file_resolved_relative_to_config_dir(tmp_path):
     (tmp_path / "c.yaml").write_text(yaml.safe_dump(base, allow_unicode=True), encoding="utf-8")
     cfg = load_config(tmp_path / "c.yaml")   # tmp 폴더엔 tuning.yaml 없음 → 프로젝트의 tuning.yaml을 읽으면 안 됨
     assert "short" not in (cfg["indicators"]["vix"].get("horizons") or {})
+
+
+def test_predict_flag_must_be_bool(tmp_path):
+    p = _write_modified(tmp_path, lambda c: c["horizons"]["long"].update(predict="no"))
+    with pytest.raises(ConfigError):
+        load_config(p, apply_tuning=False)
+    p = _write_modified(tmp_path, lambda c: c["horizons"]["long"].update(predict=False))
+    assert load_config(p, apply_tuning=False)["horizons"]["long"]["predict"] is False

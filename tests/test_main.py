@@ -85,9 +85,9 @@ def test_dry_run_sends_nothing(tmp_path, monkeypatch, capsys):
 
 def test_normal_run_sends_two_messages(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch)
-    assert rc == 0 and len(client.sent) == 5
+    assert rc == 0 and len(client.sent) == 4
     assert client.sent[0].startswith("[나스닥 방향성] 11/21(토) · 11/20 마감")
-    assert [m.splitlines()[0].split("]")[0] for m in client.sent[1:4]] == ["[단기 근거", "[중기 근거", "[장기 근거"]
+    assert [m.splitlines()[0].split("]")[0] for m in client.sent[1:3]] == ["[단기 근거", "[중기 근거"]
     assert "•" in client.sent[1]
 
 
@@ -98,9 +98,9 @@ def test_core_data_failure_sends_error_message(tmp_path, monkeypatch):
 
 def test_fred_missing_still_sends_with_warning(tmp_path, monkeypatch):
     rc, client = _run(tmp_path, monkeypatch, md=_md(with_fred=False))
-    assert rc == 0 and len(client.sent) == 5
-    assert "신뢰도 낮음" in client.sent[0]
-    assert "누락" in client.sent[-1]
+    assert rc == 0 and len(client.sent) == 4
+    # 현재 설정에서 FRED는 단기 7.5%·중기 17.5% 비중 → '신뢰도 낮음'(30%) 기준 미만, 누락 표시는 유지
+    assert "누락: 10년물" in client.sent[-1]
 
 
 def test_auth_error_returns_2(tmp_path, monkeypatch):
@@ -123,7 +123,7 @@ def test_history_write_failure_does_not_block_messages(tmp_path, monkeypatch):
         raise PermissionError("history.csv is open in Excel")
     monkeypatch.setattr(m, "append_history", locked)
     rc, client = _run(tmp_path, monkeypatch)
-    assert rc == 0 and len(client.sent) == 5
+    assert rc == 0 and len(client.sent) == 4
 
 
 def test_dry_run_does_not_write_history(tmp_path, monkeypatch):
@@ -158,3 +158,17 @@ def test_mismatched_calibration_hides_probabilities(tmp_path):
     Calibration.save_all(cals, cfg["paths"]["calibration"], meta={"config": config_fingerprint(cfg), "missing": ["fear_greed"]})
     report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
     assert not report.calibration_stale and report.probs["short"] is not None
+
+
+def test_unpredicted_long_uses_base_rates_and_ignores_long_missing(tmp_path, monkeypatch):
+    from nasdaq_signal.scoring import Calibration, config_fingerprint
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    cfg["horizons"]["long"]["predict"] = False
+    s = pd.Series(np.linspace(-100, 99, 4000))
+    l = pd.Series(["up"] * 3000 + ["down"] * 1000)
+    cals = {h: Calibration.from_backtest(s, l, 20) for h in ("short", "mid", "long")}
+    Calibration.save_all(cals, cfg["paths"]["calibration"], meta={"config": config_fingerprint(cfg), "missing": []},
+                         base={"short": [50, 30, 20, 100], "mid": [60, 30, 10, 100], "long": [76, 13, 11, 100]})
+    report, _ = m.build_report(cfg, _md(), date(2026, 11, 21), None)
+    assert report.probs["long"] == (76, 13, 11)
+    assert report.unpredicted == {"long"}

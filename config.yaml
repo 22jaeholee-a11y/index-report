@@ -1,7 +1,7 @@
 horizons:
   short: {days: 10,  up: 0.015, down: -0.015}
   mid:   {days: 63,  up: 0.04,  down: -0.04}
-  long:  {days: 252, up: 0.08,  down: -0.08}
+  long:  {days: 252, up: 0.08,  down: -0.08, predict: false}   # 2008 포함 검증에서 안정적 예측 지표 없음 → 역사적 평균만 표시
 category_weights:          # 카테고리 × 기간, 기간별 합 = 1
   market:    {short: 0.45, mid: 0.30, long: 0.15}
   sentiment: {short: 0.30, mid: 0.20, long: 0.10}
