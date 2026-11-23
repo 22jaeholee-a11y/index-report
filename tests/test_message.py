@@ -173,3 +173,10 @@ def test_unpredicted_horizon_shows_historical_average_and_no_reason_message():
     assert len(msgs) == 4
     assert msgs[0].splitlines()[3] == "장기 ▲ 상승 76 · 횡보 13 · 하락 11 (역사적 평균, 예측 신호 없음)"
     assert not any(m.startswith("[장기 근거]") for m in msgs)
+
+
+def test_middle_percentile_is_not_described_as_extreme():
+    from nasdaq_signal.explain import Driver, describe
+    line = describe(Driver("us10y_chg_20", 0.08, 0.56, -4.0, -1, False))
+    assert "금리 급등" not in line and "평균보다 다소 높음" in line
+    assert "금리 급락" in describe(Driver("us10y_chg_20", -0.4, 0.15, 3.0, -1, False))

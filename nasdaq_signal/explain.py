@@ -95,7 +95,10 @@ def describe(d: Driver) -> str:
         pos = f"(5년 상위 {max(1, round((1 - d.pct) * 100))}%)"
     else:
         pos = f"(5년 하위 {max(1, round(d.pct * 100))}%)"
-    state = high_state if high else low_state
+    if not math.isnan(d.pct) and 0.2 < d.pct < 0.8:  # 상·하위 20% 밖이 아니면 '급등/과열' 같은 표현은 과장
+        state = "평균보다 다소 높음" if high else "평균보다 다소 낮음"
+    else:
+        state = high_state if high else low_state
     if d.contrarian:
         state = "극단적 " + state
     outcome = "상승" if d.points > 0 else "하락"
