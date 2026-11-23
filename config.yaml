@@ -1,0 +1,44 @@
+horizons:
+  short: {days: 10,  up: 0.015, down: -0.015}
+  mid:   {days: 63,  up: 0.04,  down: -0.04}
+  long:  {days: 252, up: 0.08,  down: -0.08}
+category_weights:          # 카테고리 × 기간, 기간별 합 = 1
+  market:    {short: 0.45, mid: 0.30, long: 0.15}
+  sentiment: {short: 0.30, mid: 0.20, long: 0.10}
+  geo:       {short: 0.10, mid: 0.15, long: 0.15}
+  macro:     {short: 0.15, mid: 0.35, long: 0.60}
+indicators:                # transform: percentile | contrarian ; direction: +1/-1
+  trend_50:     {category: market, transform: percentile, direction: 1}
+  trend_200:    {category: market, transform: percentile, direction: 1}
+  ret_20:       {category: market, transform: percentile, direction: 1}
+  ret_60:       {category: market, transform: percentile, direction: 1}
+  drawdown_52w: {category: market, transform: percentile, direction: 1}
+  breadth:      {category: market, transform: percentile, direction: 1}
+  vix:          {category: sentiment, transform: percentile, direction: -1,
+                 horizons: {mid: {transform: contrarian}, long: {transform: contrarian}}}
+  vix_term:     {category: sentiment, transform: percentile, direction: -1}
+  gpr:          {category: geo, transform: percentile, direction: -1}
+  oil_ret_20:   {category: geo, transform: percentile, direction: -1}
+  gold_ret_20:  {category: geo, transform: percentile, direction: -1}
+  us10y_chg_20: {category: macro, transform: percentile, direction: -1}
+  curve:        {category: macro, transform: percentile, direction: 1}
+  hy_spread:    {category: macro, transform: percentile, direction: -1}
+  dxy_ret_60:   {category: macro, transform: percentile, direction: -1}
+  nfci:         {category: macro, transform: percentile, direction: -1}
+  sahm:         {category: macro, transform: percentile, direction: -1}
+percentile_window: 1260    # 5년(거래일)
+percentile_min_periods: 252
+contrarian_band: 0.10      # 하위/상위 10% 밖에서만 신호
+low_confidence_missing: 0.3
+arrow_threshold: 20
+ai_adjustment_cap: 10
+stale_days: 5
+backtest: {start: "2010-01-01", split: "2018-01-01", bucket: 20}
+fred_series:               # series_id: 발표 지연(영업일)
+  DGS10: 1
+  T10Y2Y: 1
+  BAMLH0A0HYM2: 1
+  NFCI: 5
+  SAHMREALTIME: 25
+kakao: {redirect_uri: "http://localhost:5000/callback", link_url: "https://finance.yahoo.com/quote/%5ENDX"}
+paths: {state: "state", calibration: "state/calibration.json", history: "state/history.csv", tokens: "state/kakao_tokens.json", logs: "state/logs"}

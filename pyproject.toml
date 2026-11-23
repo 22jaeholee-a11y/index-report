@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nasdaq-signal"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "pandas>=2.2",
+  "numpy>=1.26",
+  "requests>=2.31",
+  "yfinance>=0.2.50",
+  "PyYAML>=6.0",
+  "python-dotenv>=1.0",
+  "xlrd>=2.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["nasdaq_signal*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
