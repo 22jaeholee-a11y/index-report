@@ -82,3 +82,12 @@ def test_render_includes_today_drivers_section(tmp_path):
     d = payload["today"]["short"]
     assert d["score"] == 61.0 and d["drivers"][0]["label"] == "VIX" and d["drivers"][0]["max"] == 67.0
     assert "오늘의 근거" in html
+
+
+def test_tabs_and_no_bar_legend_text(tmp_path):
+    cfg = _cfg(tmp_path)
+    html = render_html(build_history(cfg, _md(), days=30), generated="x")
+    assert 'role="tablist"' in html
+    assert 'id="tab-today"' in html and 'id="tab-chart"' in html
+    assert 'id="panel-today"' in html and 'id="panel-chart"' in html
+    assert "막대 = 기여 점수" not in html

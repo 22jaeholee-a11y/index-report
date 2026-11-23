@@ -151,6 +151,11 @@ main { max-width: 980px; margin: 0 auto; padding: 20px 16px 48px; }
 h1 { font-size: 20px; margin: 0 0 4px; }
 .sub { color: var(--text-secondary); margin: 0 0 16px; font-size: 13px; }
 .bar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+.tabs button { border: 0; background: none; color: var(--text-secondary); font: inherit; font-size: 14px;
+  padding: 8px 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--text-primary); }
+.tabs button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; border-radius: 4px; }
 .bar button { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
   border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
 .bar button[aria-pressed="true"] { color: var(--text-primary); border-color: var(--text-secondary); font-weight: 600; }
@@ -198,18 +203,25 @@ th { color: var(--text-secondary); font-weight: 600; }
 <main>
   <h1>나스닥 방향성 추이</h1>
   <p class="sub" id="sub"></p>
+  <div class="tabs" role="tablist" aria-label="보기">
+    <button role="tab" id="tab-today" aria-controls="panel-today" aria-selected="true">오늘의 근거</button>
+    <button role="tab" id="tab-chart" aria-controls="panel-chart" aria-selected="false">차트</button>
+  </div>
+  <div role="tabpanel" id="panel-today" aria-labelledby="tab-today"><div id="today"></div></div>
+  <div role="tabpanel" id="panel-chart" aria-labelledby="tab-chart" hidden>
   <div class="bar" role="group" aria-label="기간">
     <button data-n="21">1개월</button><button data-n="63">3개월</button><button data-n="126" aria-pressed="true">6개월</button>
     <button data-n="252">1년</button><button data-n="0">전체</button>
   </div>
-  <div id="today"></div>
   <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
   <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
   <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 2005년 이후 실제 결과로 계산 · 50% 기준선</p><div class="chart" id="c-up"></div></section>
   <section class="card"><h2>카테고리 점수 (중기)</h2><p>-1 ~ +1 · 카테고리 안 지표 신호의 평균</p><div class="chart" id="c-cat"></div></section>
   <details><summary>표로 보기 (최근 30일)</summary><div id="table"></div></details>
-  <p class="note">음영 구간은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
-  당시 실제로 받았을 메시지보다 잘 맞아 보일 수 있습니다. 투자 판단의 참고 자료일 뿐 예측을 보장하지 않습니다.</p>
+  <p class="note">회색 음영은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
+  당시 실제로 받았을 메시지보다 잘 맞아 보일 수 있습니다.</p>
+  </div>
+  <p class="note">투자 판단의 참고 자료일 뿐 예측을 보장하지 않습니다.</p>
 </main>
 <script id="data" type="application/json">__DATA__</script>
 <script>
@@ -364,7 +376,7 @@ th { color: var(--text-secondary); font-weight: 600; }
       const t = T[h];
       let html = `<section class="card"><div class="head2"><h2>오늘의 근거 · ${esc(t.title)}</h2>` +
         `<span class="sc">${t.score > 0 ? "+" : ""}${Math.round(t.score)} <span class="pos">${esc(t.position)}</span></span></div>` +
-        `<p>막대 = 기여 점수 ÷ 최대치 · <span style="color:var(--up)">파랑</span> 상승 쪽, <span style="color:var(--down)">빨강</span> 하락 쪽 · 기여 점수를 모두 더하면 위 점수</p><table class="drv"><tbody>`;
+        `<table class="drv"><tbody>`;
       t.drivers.forEach(d => {
         const frac = d.max ? Math.max(-1, Math.min(1, d.points / d.max)) : 0;
         const w = Math.abs(frac) * 50, left = frac >= 0 ? 50 : 50 - w;
@@ -377,7 +389,25 @@ th { color: var(--text-secondary); font-weight: 600; }
       host.insertAdjacentHTML("beforeend", html + "</tbody></table></section>");
     });
   }
-  render(); table(); today();
+  // 탭: 오늘의 근거 / 차트 (주소 #chart 로 차트 탭 바로 열기). 숨겨진 상태에선 폭이 0이라 탭을 열 때 다시 그림
+  const TABS = { today: ["tab-today", "panel-today"], chart: ["tab-chart", "panel-chart"] };
+  function show(name, push) {
+    Object.entries(TABS).forEach(([k, [t, p]]) => {
+      const on = k === name;
+      document.getElementById(t).setAttribute("aria-selected", on);
+      document.getElementById(t).tabIndex = on ? 0 : -1;
+      document.getElementById(p).hidden = !on;
+    });
+    if (name === "chart") render();
+    if (push) history.replaceState(null, "", name === "chart" ? "#chart" : "#");
+  }
+  Object.entries(TABS).forEach(([k, [t]]) => document.getElementById(t).addEventListener("click", () => show(k, true)));
+  document.querySelector(".tabs").addEventListener("keydown", e => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const next = document.getElementById("tab-today").getAttribute("aria-selected") === "true" ? "chart" : "today";
+    show(next, true); document.getElementById(TABS[next][0]).focus();
+  });
+  table(); today(); show(location.hash === "#chart" ? "chart" : "today", false);
 })();
 </script>
 </body>
