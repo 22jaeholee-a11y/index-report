@@ -1,4 +1,4 @@
-# 매일 09:00 나스닥 방향성 알림을 Windows 작업 스케줄러에 등록합니다.
+﻿# 매일 09:00 나스닥 방향성 알림을 Windows 작업 스케줄러에 등록합니다.
 # 실행: powershell -ExecutionPolicy Bypass -File scripts\register_task.ps1
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
