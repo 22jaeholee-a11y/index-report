@@ -43,6 +43,43 @@ class FileTokenStore:
         os.chmod(self.path, 0o600)
 
 
+class EncryptedFileTokenStore:
+    """암호화된 토큰 파일 (저장소에 커밋해도 안전). 키는 환경변수 KAKAO_TOKEN_KEY(Fernet 키).
+
+    리프레시 토큰·만료시각이 바뀔 때만 파일을 다시 쓴다 → 매일 바뀌는 액세스 토큰 때문에 커밋이 생기지 않음.
+    액세스 토큰은 실행 중 메모리에만 둔다 (매 실행마다 리프레시로 새로 받음).
+    """
+    PERSIST = ("refresh_token", "refresh_token_expires_at")
+
+    def __init__(self, path: str, key: str):
+        from cryptography.fernet import Fernet
+        self.path = Path(path)
+        self._f = Fernet(key.encode() if isinstance(key, str) else key)
+        self._mem: dict | None = None
+
+    def load(self) -> dict | None:
+        if self._mem is not None:
+            return dict(self._mem)
+        if not self.path.exists():
+            return None
+        from cryptography.fernet import InvalidToken
+        try:
+            data = json.loads(self._f.decrypt(self.path.read_bytes()).decode("utf-8"))
+        except InvalidToken as e:
+            raise KakaoAuthError("토큰 파일을 풀 수 없습니다: KAKAO_TOKEN_KEY 가 맞는지 확인하세요") from e
+        self._mem = data
+        return dict(data)
+
+    def save(self, tokens: dict) -> None:
+        old = self.load() or {}
+        self._mem = dict(tokens)
+        if all(old.get(k) == tokens.get(k) for k in self.PERSIST) and self.path.exists():
+            return
+        persist = {k: tokens.get(k) for k in self.PERSIST if tokens.get(k) is not None}
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_bytes(self._f.encrypt(json.dumps(persist).encode("utf-8")))
+
+
 def merge_token_response(old: dict | None, resp: dict, now: datetime | None = None) -> dict:
     """토큰 응답을 저장 형식으로 병합. 새 리프레시 토큰이 오면 교체하고 만료시각 갱신."""
     now = now or datetime.now(timezone.utc)

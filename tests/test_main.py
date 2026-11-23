@@ -234,3 +234,15 @@ def test_dashboard_contains_today_drivers(tmp_path, monkeypatch):
     payload = _json.loads(_re.search(r'<script id="data" type="application/json">(.*?)</script>', html, _re.S).group(1))
     assert set(payload["today"]) == {"short", "mid"}
     assert payload["today"]["mid"]["title"] == "중기적" and payload["today"]["mid"]["drivers"]
+
+
+def test_make_client_uses_encrypted_store_when_key_set(tmp_path, monkeypatch):
+    from cryptography.fernet import Fernet
+    from nasdaq_signal.kakao import EncryptedFileTokenStore, FileTokenStore
+    cfg = yaml.safe_load(open(_cfg_path(tmp_path), encoding="utf-8"))
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "k")
+    monkeypatch.delenv("KAKAO_TOKEN_KEY", raising=False)
+    assert isinstance(m.make_client(cfg).store, FileTokenStore)
+    monkeypatch.setenv("KAKAO_TOKEN_KEY", Fernet.generate_key().decode())
+    c = m.make_client(cfg)
+    assert isinstance(c.store, EncryptedFileTokenStore) and c.store.path.name == "kakao_tokens.enc"

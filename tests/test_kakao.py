@@ -148,3 +148,33 @@ def test_kakao_auth_with_redirect_arg_exchanges_code(tmp_path, monkeypatch):
     assert ka.main(["http://localhost:5000/callback?code=XYZ"]) == 0
     assert posts[0][1]["code"] == "XYZ"
     assert FileTokenStore(cfg["paths"]["tokens"]).load()["refresh_token"] == "r"
+
+
+def test_encrypted_store_roundtrip_and_file_is_not_plaintext(tmp_path):
+    from cryptography.fernet import Fernet
+    from nasdaq_signal.kakao import EncryptedFileTokenStore
+    key = Fernet.generate_key().decode()
+    s = EncryptedFileTokenStore(str(tmp_path / "t.enc"), key)
+    assert s.load() is None
+    s.save({"access_token": "a", "refresh_token": "SECRET-R"})
+    assert s.load()["refresh_token"] == "SECRET-R"
+    assert b"SECRET-R" not in (tmp_path / "t.enc").read_bytes()
+
+
+def test_encrypted_store_wrong_key_raises_auth_error(tmp_path):
+    from cryptography.fernet import Fernet
+    from nasdaq_signal.kakao import EncryptedFileTokenStore
+    EncryptedFileTokenStore(str(tmp_path / "t.enc"), Fernet.generate_key().decode()).save({"refresh_token": "r"})
+    with pytest.raises(KakaoAuthError, match="KAKAO_TOKEN_KEY"):
+        EncryptedFileTokenStore(str(tmp_path / "t.enc"), Fernet.generate_key().decode()).load()
+
+
+def test_encrypted_store_skips_rewrite_when_unchanged(tmp_path):
+    from cryptography.fernet import Fernet
+    from nasdaq_signal.kakao import EncryptedFileTokenStore
+    s = EncryptedFileTokenStore(str(tmp_path / "t.enc"), Fernet.generate_key().decode())
+    s.save({"refresh_token": "r", "access_token": "a1"})
+    before = (tmp_path / "t.enc").read_bytes()
+    s.save({"refresh_token": "r", "access_token": "a2"})   # 액세스 토큰만 바뀜 → 파일 그대로 (매일 커밋 방지)
+    assert (tmp_path / "t.enc").read_bytes() == before
+    assert s.load()["access_token"] == "a2"               # 같은 실행 안에서는 새 액세스 토큰 사용

@@ -17,7 +17,7 @@ from .data import DataSourceError, MarketData, collect_all
 from .dashboard import write_dashboard
 from .explain import last_percentiles, top_drivers
 from .indicators import compute_raw, mask_missing, to_signals
-from .kakao import FileTokenStore, KakaoAuthError, KakaoClient
+from .kakao import EncryptedFileTokenStore, FileTokenStore, KakaoAuthError, KakaoClient
 from .message import HORIZON_KO, Report, format_messages, position_text
 from .zone import zone_info
 from .scoring import (Calibration, base_probabilities, load_score_distributions, score_frame,
@@ -116,7 +116,11 @@ def make_client(cfg: dict) -> KakaoClient:
     key = os.environ.get("KAKAO_REST_API_KEY")
     if not key:
         raise KakaoAuthError("KAKAO_REST_API_KEY 가 설정되지 않았습니다 (.env)")
-    return KakaoClient(key, FileTokenStore(cfg["paths"]["tokens"]), os.environ.get("KAKAO_CLIENT_SECRET") or None)
+    token_key = os.environ.get("KAKAO_TOKEN_KEY")
+    # 키가 있으면(클라우드 포함) 저장소에 커밋되는 암호화 토큰 파일, 없으면 로컬 평문 파일
+    store = (EncryptedFileTokenStore(cfg["paths"]["tokens_enc"], token_key) if token_key
+             else FileTokenStore(cfg["paths"]["tokens"]))
+    return KakaoClient(key, store, os.environ.get("KAKAO_CLIENT_SECRET") or None)
 
 
 def _setup_logging(log_dir: str, run_date: date) -> None:

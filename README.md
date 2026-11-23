@@ -49,3 +49,21 @@ powershell -ExecutionPolicy Bypass -File scripts\register_task.ps1   # 매일 09
 
 ## 종료 코드
 0 정상 · 1 핵심 데이터(나스닥 가격) 수집 실패(오류 메시지 발송) · 2 카카오 인증 문제
+
+## 5. 클라우드 실행 (GitHub Actions) — PC가 꺼져 있어도 매일 발송
+워크플로: `.github/workflows/daily.yml` — 매일 09:07(KST) 실행, 결과(`public/index.html`, `model/`)를 자동 커밋 → Vercel 자동 배포.
+
+**최초 1회 설정**
+1. 로컬에서 카카오 인증 후 `.venv\Scripts\python -m nasdaq_signal.tokens export`
+   → `.env`에 `KAKAO_TOKEN_KEY` 생성, `model/kakao_tokens.enc`(암호화된 토큰) 생성 → 커밋·푸시
+2. GitHub 저장소 → Settings → Secrets and variables → Actions → New repository secret 으로 등록
+   - `FRED_API_KEY`, `KAKAO_REST_API_KEY`, `KAKAO_TOKEN_KEY` (값은 `.env`에서 복사)
+   - `KAKAO_CLIENT_SECRET` (카카오 앱에서 Client Secret을 켠 경우만)
+3. Actions 탭 → daily → Run workflow (처음엔 `dry_run` 체크로 확인 → 이후 실제 발송)
+4. 확인되면 PC 예약 작업 해제: `Unregister-ScheduledTask -TaskName NasdaqSignal -Confirm:$false` (중복 발송 방지)
+
+**운영**
+- 실패하면 GitHub가 저장소 소유자에게 이메일을 보냅니다. 로그는 실행 결과의 Artifacts(`logs-…`)에 14일 보관.
+- 수동 발송: Actions → daily → Run workflow (휴대폰 GitHub 앱/웹에서도 가능).
+- 카카오 재인증(메시지에 "재인증 필요: D-n"이 뜨면): 로컬에서 `kakao_auth` 두 단계 → `tokens export` → `model/kakao_tokens.enc` 커밋·푸시.
+- 클라우드가 매일 `model/history.csv` 등을 커밋하므로, 로컬에서 작업하기 전에 `git pull` 하세요.
