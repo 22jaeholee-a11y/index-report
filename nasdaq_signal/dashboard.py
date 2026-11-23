@@ -182,6 +182,7 @@ h1 { font-size: 20px; margin: 0 0 4px; }
 .readout { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: 13px; color: var(--text-secondary); margin-bottom: 2px; min-height: 20px; }
 .readout i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
 .readout b { color: var(--text-primary); font-variant-numeric: tabular-nums; margin-left: 3px; }
+.readout .ex { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .chart { position: relative; }
 svg { display: block; width: 100%; height: auto; overflow: visible; -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
@@ -246,11 +247,10 @@ th { color: var(--text-secondary); font-weight: 600; }
     <button data-n="252">1년</button><button data-n="0">전체</button>
   </div>
   <section class="card"><h2>나스닥100 지수</h2><p>일별 종가 · <span class="sw zone"></span>매수 구간 (중기 점수 __ENTRY__ 이상 진입, __EXIT__ 미만 청산)</p><div class="chart" id="c-ndx"></div></section>
-  <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
-  <section class="card"><h2>상승 확률 (%)</h2><p>점수 구간별 2005년 이후 실제 결과로 계산 · 50% 기준선 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-up"></div></section>
+  <section class="card"><h2>방향성 점수</h2><p>-100 ~ +100 · 0 = 5년 기준 평소 수준 · (상승 n%) = 그 점수대의 2005년 이후 실제 상승 비율 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-score"></div></section>
   <section class="card"><h2>카테고리 점수 (중기)</h2><p>-1 ~ +1 · 카테고리 안 지표 신호의 평균 · <span class="sw zone"></span>매수 구간</p><div class="chart" id="c-cat"></div></section>
   <details><summary>표로 보기 (최근 30일)</summary><div class="tbl" id="table"></div></details>
-  <p class="note">차트를 누르거나 좌우로 밀면 4개 차트가 같은 날짜로 맞춰지고 값이 위에 표시됩니다. 차트 밖을 누르면 최신 날짜로 돌아갑니다.
+  <p class="note">차트를 누르거나 좌우로 밀면 모든 차트가 같은 날짜로 맞춰지고 값이 위에 표시됩니다. 차트 밖을 누르면 최신 날짜로 돌아갑니다.
   회색 음영은 실제로 카카오톡이 발송된 날입니다. 그 이전 값은 현재 설정으로 과거 데이터를 다시 계산한 것이라,
   당시 실제로 받았을 메시지보다 잘 맞아 보일 수 있습니다.</p>
   </div>
@@ -274,11 +274,8 @@ th { color: var(--text-secondary); font-weight: 600; }
   const CHARTS = [
     { id: "c-ndx", zone: true, series: [{ key: "ndx", name: "나스닥100", color: "--s1" }], fmt: v => v.toLocaleString("ko-KR", { maximumFractionDigits: 0 }) },
     { id: "c-score", zone: true, domain: [-100, 100], ticks: [-100, -50, 0, 50, 100], ref: 0,
-      series: [{ key: "short_score", name: "단기", color: "--s1" }, { key: "mid_score", name: "중기", color: "--s2" }],
+      series: [{ key: "short_score", name: "단기", color: "--s1", extra: "short_up" }, { key: "mid_score", name: "중기", color: "--s2", extra: "mid_up" }],
       fmt: v => { const r = Math.round(v); return r > 0 ? "+" + r : String(r === 0 ? 0 : r); } },
-    { id: "c-up", zone: true, domain: [0, 100], ticks: [0, 25, 50, 75, 100], ref: 50,
-      series: [{ key: "short_up", name: "단기 상승", color: "--s1" }, { key: "mid_up", name: "중기 상승", color: "--s2" }],
-      fmt: v => Math.round(v) + "%" },
     { id: "c-cat", zone: true, domain: [-1, 1], ticks: [-1, -0.5, 0, 0.5, 1], ref: 0,
       series: [{ key: "mid_market", name: "시장", color: "--s1" }, { key: "mid_sentiment", name: "심리", color: "--s2" },
                { key: "mid_geo", name: "지정학", color: "--s3" }, { key: "mid_macro", name: "매크로", color: "--s4" }],
@@ -418,7 +415,8 @@ th { color: var(--text-secondary); font-weight: 600; }
     return { show(i, mark) {
       const r = rows[i];
       readout.innerHTML = cfg.series.map(s =>
-        `<span><i style="background:${css(s.color)}"></i>${esc(s.name)}<b>${r[s.key] == null ? "-" : esc(cfg.fmt(r[s.key]))}</b></span>`).join("");
+        `<span><i style="background:${css(s.color)}"></i>${esc(s.name)}<b>${r[s.key] == null ? "-" : esc(cfg.fmt(r[s.key]))}</b>` +
+        (s.extra && r[s.extra] != null ? ` <span class="ex">(상승 ${Math.round(r[s.extra])}%)</span>` : "") + `</span>`).join("");
       vline.setAttribute("x1", x(i)); vline.setAttribute("x2", x(i)); vline.setAttribute("visibility", mark ? "visible" : "hidden");
       cfg.series.forEach((s, k) => { const v = r[s.key];
         if (!mark || v == null) { dots[k].setAttribute("visibility", "hidden"); return; }

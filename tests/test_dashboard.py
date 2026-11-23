@@ -154,5 +154,11 @@ def test_long_press_scrub_support(tmp_path):
 
 def test_buy_zone_shaded_on_all_four_charts():
     src = open("nasdaq_signal/dashboard.py", encoding="utf-8").read()
-    for cid in ("c-ndx", "c-score", "c-up", "c-cat"):
+    for cid in ("c-ndx", "c-score", "c-cat"):
         assert f'{{ id: "{cid}", zone: true' in src
+
+
+def test_probability_chart_removed_and_shown_in_score_readout(tmp_path):
+    html = render_html(build_history(_cfg(tmp_path), _md(), days=30), generated="x")
+    assert 'id="c-up"' not in html and "<h2>상승 확률 (%)</h2>" not in html
+    assert 'extra: "short_up"' in html and 'extra: "mid_up"' in html   # 점수 값 옆에 (상승 n%)
