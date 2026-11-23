@@ -141,18 +141,18 @@ def _missing_line(missing: list[str]) -> str:
 def _message_two(r: Report) -> str:
     kv = r.key_values
     # (우선순위, 줄) — 숫자가 작을수록 중요. 200자 초과 시 큰 숫자부터 제거.
-    lines: list[tuple[int, str]] = [
-        (1, " ".join(f"{ko} {_cat(r.categories.get(c))}" for c, ko in CATEGORY_KO.items())),
-    ]
+    # 지표는 한 줄에 하나씩
+    lines: list[tuple[float, str]] = [(1, f"{ko} {_cat(r.categories.get(c))}") for c, ko in CATEGORY_KO.items()]
     if r.reauth_days is not None and r.reauth_days <= 14:
         lines.append((2, f"⚠ 재인증 필요: D-{max(r.reauth_days, 0)}"))
     if r.missing:
         lines.append((3, _missing_line(r.missing)))
     if r.calibration_stale:
         lines.append((3.5, "⚠ 확률표 갱신 필요(백테스트 재실행)"))
-    lines.append((4, f"VIX {_num(kv.get('vix'), '.1f')} · 10년물 {_num(kv.get('us10y'), '.2f')}"
-                     f"{'' if _isnan(kv.get('us10y')) else '%'} · HY {_num(kv.get('hy_spread'), '.2f')}"
-                     f"{'' if _isnan(kv.get('hy_spread')) else '%'}"))
+    pct = lambda v: "-" if _isnan(v) else f"{v:.2f}%"  # noqa: E731
+    lines += [(4, f"VIX {_num(kv.get('vix'), '.1f')}"),
+              (4, f"10년물 {pct(kv.get('us10y'))}"),
+              (4, f"HY {pct(kv.get('hy_spread'))}")]
     if r.nq_change is not None and r.run_date.weekday() == 0:
         lines.append((5, f"월요일 NQ선물 {r.nq_change * 100:+.1f}%"))
     if r.fear_greed is not None:

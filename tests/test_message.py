@@ -52,9 +52,14 @@ def test_low_confidence_line():
 def test_message_two_layout():
     _, m2 = format_messages(_report(missing=["fear_greed"]))
     assert m2 == (
-        "시장 +0.4 심리 +0.1 지정학 -0.2 매크로 +0.3\n"
+        "시장 +0.4\n"
+        "심리 +0.1\n"
+        "지정학 -0.2\n"
+        "매크로 +0.3\n"
         "⚠ 누락: 공포탐욕\n"
-        "VIX 14.2 · 10년물 4.21% · HY 3.10%\n"
+        "VIX 14.2\n"
+        "10년물 4.21%\n"
+        "HY 3.10%\n"
         "공포탐욕 72(참고)"
     )
 
@@ -65,7 +70,7 @@ def test_all_warnings_fit_200_chars():
                 low_confidence=True, market_closed=True, as_of=date(2026, 11, 20))
     m1, m2 = format_messages(r)
     assert len(m1) <= 200 and len(m2) <= 200
-    assert m2.splitlines()[0].startswith("시장 ")
+    assert m2.splitlines()[:4] == ["시장 +0.4", "심리 +0.1", "지정학 -0.2", "매크로 +0.3"]
     assert "⚠ 재인증 필요: D-3" in m2
 
 
@@ -93,13 +98,13 @@ def test_nan_category_and_key_values_shown_as_dash():
     nan = float("nan")
     _, m2 = format_messages(_report(categories={**CATS, "macro": nan},
                                     key_values={"vix": 14.2, "us10y": nan, "hy_spread": nan}))
-    assert "매크로 -" in m2.splitlines()[0]
-    assert "10년물 -" in m2
+    assert "매크로 -" in m2.splitlines()
+    assert "10년물 -" in m2.splitlines() and "HY -" in m2.splitlines()
 
 
 def test_tiny_negative_category_shows_zero_without_sign_noise():
     _, m2 = format_messages(_report(categories={**CATS, "sentiment": -0.04}))
-    assert "심리 +0.0" in m2.splitlines()[0]
+    assert "심리 +0.0" in m2.splitlines()
 
 
 def test_stale_calibration_warning_line():
