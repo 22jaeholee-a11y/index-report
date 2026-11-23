@@ -46,11 +46,11 @@ def test_percentile_signal_bounds():
 
 def test_percentile_signal_direction():
     f = _frame()
-    f["nfci"] = np.linspace(1, 10, len(f))           # nfci direction -1
+    f["gpr"] = np.linspace(1, 10, len(f))            # gpr direction -1
     f["t10y2y"] = np.linspace(1, 10, len(f))         # curve direction +1
     sig = to_signals(compute_raw(f), _cfg())
     assert sig["short"]["curve"].iloc[-1] == pytest.approx(1.0, abs=0.01)
-    assert sig["short"]["nfci"].iloc[-1] == pytest.approx(-1.0, abs=0.01)
+    assert sig["short"]["gpr"].iloc[-1] == pytest.approx(-1.0, abs=0.01)
 
 
 def test_contrarian_vix_extreme_high_is_bullish():

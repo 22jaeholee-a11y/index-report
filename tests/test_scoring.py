@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from nasdaq_signal.config import load_config
+from nasdaq_signal.config import active_indicators, load_config
 from nasdaq_signal.scoring import Calibration, arrow, score_frame
 
 
@@ -40,9 +40,10 @@ def test_missing_category_renormalizes():
 def test_partial_missing_inside_category_counts_fraction():
     cfg, sig = _signals(0.5)
     for h in sig:
-        sig[h]["nfci"] = np.nan  # macro 6개 중 1개
+        sig[h]["dxy_ret_60"] = np.nan  # 활성 macro 지표 중 1개
+    n_macro = len([k for k in active_indicators(cfg, "long") if cfg["indicators"][k]["category"] == "macro"])
     sf = score_frame(sig, cfg)
-    assert sf["long_missing"].iloc[-1] == pytest.approx(0.60 / 6)
+    assert sf["long_missing"].iloc[-1] == pytest.approx(0.60 / n_macro)
     assert sf["long_score"].iloc[-1] == pytest.approx(50)
 
 
@@ -98,10 +99,11 @@ def test_excluded_indicator_is_not_missing_and_not_scored():
     cfg["indicators"]["curve"]["horizons"] = {"long": {"exclude": True}}
     for h in sig:
         sig[h] = sig[h].drop(columns=["curve"]) if h == "long" else sig[h]
-    sig["long"]["nfci"] = -1.0
+    sig["long"]["dxy_ret_60"] = -1.0
     sf = score_frame(sig, cfg)
     assert sf["long_missing"].iloc[-1] == 0
-    # macro 활성 지표: us10y, credit/hy, dxy, nfci, sahm (curve 제외) → 평균에 curve 미포함
-    macro_active = [k for k, v in cfg["indicators"].items() if v["category"] == "macro" and k != "curve"]
+    # 평균은 long에서 활성인 macro 지표만 (curve 및 설정상 제외 지표 미포함)
+    macro_active = [k for k in active_indicators(cfg, "long") if cfg["indicators"][k]["category"] == "macro"]
+    assert "curve" not in macro_active
     expected = (0.5 * (len(macro_active) - 1) - 1.0) / len(macro_active)
     assert sf["long_macro"].iloc[-1] == pytest.approx(expected)
