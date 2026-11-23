@@ -1,0 +1,110 @@
+import json
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
+from nasdaq_signal import kakao
+from nasdaq_signal.kakao import FileTokenStore, KakaoAuthError, KakaoClient
+
+
+class FakeResp:
+    def __init__(self, payload, status=200):
+        self._p, self.status_code = payload, status
+
+    def json(self):
+        return self._p
+
+
+class Recorder:
+    def __init__(self, *responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def __call__(self, url, data=None, headers=None, timeout=None):
+        self.calls.append({"url": url, "data": data, "headers": headers})
+        return self.responses.pop(0)
+
+
+def _store(tmp_path, **tokens):
+    s = FileTokenStore(str(tmp_path / "tokens.json"))
+    base = {"access_token": "old-a", "refresh_token": "old-r",
+            "refresh_token_expires_at": "2026-12-31T00:00:00+00:00"}
+    base.update(tokens)
+    s.save(base)
+    return s
+
+
+def test_refresh_rotates_refresh_token_and_expiry(tmp_path, monkeypatch):
+    rec = Recorder(FakeResp({"access_token": "new-a", "refresh_token": "new-r", "refresh_token_expires_in": 86400 * 60}))
+    monkeypatch.setattr(kakao.requests, "post", rec)
+    store = _store(tmp_path)
+    KakaoClient("key", store).refresh()
+    t = store.load()
+    assert t["access_token"] == "new-a" and t["refresh_token"] == "new-r"
+    exp = datetime.fromisoformat(t["refresh_token_expires_at"])
+    assert timedelta(days=59) < exp - datetime.now(timezone.utc) <= timedelta(days=60)
+    assert rec.calls[0]["data"]["grant_type"] == "refresh_token"
+    assert rec.calls[0]["data"]["refresh_token"] == "old-r"
+
+
+def test_refresh_keeps_old_refresh_token_when_not_returned(tmp_path, monkeypatch):
+    monkeypatch.setattr(kakao.requests, "post", Recorder(FakeResp({"access_token": "new-a"})))
+    store = _store(tmp_path)
+    KakaoClient("key", store).refresh()
+    t = store.load()
+    assert t["access_token"] == "new-a" and t["refresh_token"] == "old-r"
+    assert t["refresh_token_expires_at"] == "2026-12-31T00:00:00+00:00"
+
+
+def test_refresh_sends_client_secret_when_given(tmp_path, monkeypatch):
+    rec = Recorder(FakeResp({"access_token": "a"}))
+    monkeypatch.setattr(kakao.requests, "post", rec)
+    KakaoClient("key", _store(tmp_path), client_secret="sec").refresh()
+    assert rec.calls[0]["data"]["client_secret"] == "sec"
+
+
+def test_refresh_invalid_grant_raises_auth_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(kakao.requests, "post", Recorder(FakeResp({"error": "invalid_grant"}, status=400)))
+    with pytest.raises(KakaoAuthError, match="kakao_auth"):
+        KakaoClient("key", _store(tmp_path)).refresh()
+
+
+def test_refresh_without_tokens_raises_auth_error(tmp_path):
+    with pytest.raises(KakaoAuthError, match="kakao_auth"):
+        KakaoClient("key", FileTokenStore(str(tmp_path / "none.json"))).refresh()
+
+
+def test_send_text_rejects_over_200_chars(tmp_path):
+    with pytest.raises(ValueError):
+        KakaoClient("key", _store(tmp_path)).send_text("가" * 201, "https://x")
+
+
+def test_send_text_posts_template_with_link(tmp_path, monkeypatch):
+    rec = Recorder(FakeResp({"result_code": 0}))
+    monkeypatch.setattr(kakao.requests, "post", rec)
+    KakaoClient("key", _store(tmp_path)).send_text("나스닥 ▲", "https://x")
+    call = rec.calls[0]
+    assert call["url"].endswith("/v2/api/talk/memo/default/send")
+    assert call["headers"]["Authorization"] == "Bearer old-a"
+    assert "나스닥 ▲" in call["data"]["template_object"]
+    obj = json.loads(call["data"]["template_object"])
+    assert obj["object_type"] == "text" and obj["link"]["web_url"] == "https://x"
+
+
+def test_send_text_raises_on_api_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(kakao.requests, "post", Recorder(FakeResp({"code": -401, "msg": "bad"}, status=401)))
+    with pytest.raises(RuntimeError):
+        KakaoClient("key", _store(tmp_path)).send_text("hi", "https://x")
+
+
+def test_days_until_reauth(tmp_path):
+    c = KakaoClient("key", _store(tmp_path))
+    now = datetime(2026, 12, 21, tzinfo=timezone.utc)
+    assert c.days_until_reauth(now) == 10
+
+
+def test_extract_code_from_redirect_url():
+    from nasdaq_signal.kakao_auth import extract_code
+    assert extract_code("http://localhost:5000/callback?code=abc123 ") == "abc123"
+    with pytest.raises(ValueError):
+        extract_code("http://localhost:5000/callback?error=access_denied")
