@@ -19,6 +19,7 @@ class Driver:
     points: float       # 기간 점수에 대한 기여 (점)
     eff_sign: int       # +1: 값이 높을수록 이후 상승 경향, -1: 높을수록 하락 경향
     contrarian: bool    # 극단 구간에서만 작동하는 역발상 신호
+    max_points: float = math.nan  # 이 지표가 낼 수 있는 최대 기여 (± 대칭)
 
 
 def _pct(v: float) -> str:
@@ -60,8 +61,8 @@ def effective_sign(cfg: dict, name: str, h: str) -> int:
     return d if _setting(cfg, name, h, "transform") == "percentile" else -d
 
 
-def contributions(sig_row: pd.Series, cfg: dict, h: str) -> dict[str, float]:
-    """기간 점수를 지표별 기여 점수로 분해 (합 = 점수, ai_adjustment 제외)."""
+def max_points(sig_row: pd.Series, cfg: dict, h: str) -> dict[str, float]:
+    """지표별 최대 기여 = 카테고리 비중(재정규화) ÷ 카테고리 내 유효 지표 수 × 100. 합 = 100."""
     by_cat: dict[str, list[str]] = {}
     for name in active_indicators(cfg, h):
         if name in sig_row and not math.isnan(sig_row[name]):
@@ -69,8 +70,13 @@ def contributions(sig_row: pd.Series, cfg: dict, h: str) -> dict[str, float]:
     wsum = sum(cfg["category_weights"][c][h] for c in by_cat)
     if wsum == 0:
         return {}
-    return {n: cfg["category_weights"][c][h] / wsum * float(sig_row[n]) / len(names) * 100
+    return {n: cfg["category_weights"][c][h] / wsum / len(names) * 100
             for c, names in by_cat.items() for n in names}
+
+
+def contributions(sig_row: pd.Series, cfg: dict, h: str) -> dict[str, float]:
+    """기간 점수를 지표별 기여 점수로 분해 (합 = 점수, ai_adjustment 제외)."""
+    return {n: m * float(sig_row[n]) for n, m in max_points(sig_row, cfg, h).items()}
 
 
 def last_percentiles(raw: pd.DataFrame, cfg: dict) -> pd.Series:
@@ -80,10 +86,12 @@ def last_percentiles(raw: pd.DataFrame, cfg: dict) -> pd.Series:
 
 def top_drivers(sig_row: pd.Series, raw_row: pd.Series, pct_row: pd.Series, cfg: dict, h: str,
                 n: int = 4, min_points: float = 1.0) -> list[Driver]:
-    contrib = contributions(sig_row, cfg, h)
+    caps = max_points(sig_row, cfg, h)
+    contrib = {k: caps[k] * float(sig_row[k]) for k in caps}
     ranked = sorted((kv for kv in contrib.items() if abs(kv[1]) >= min_points), key=lambda kv: -abs(kv[1]))[:n]
     return [Driver(name, float(raw_row.get(name, np.nan)), float(pct_row.get(name, np.nan)), pts,
-                   effective_sign(cfg, name, h), _setting(cfg, name, h, "transform") == "contrarian")
+                   effective_sign(cfg, name, h), _setting(cfg, name, h, "transform") == "contrarian",
+                   caps[name])
             for name, pts in ranked]
 
 
@@ -104,4 +112,5 @@ def describe(d: Driver) -> str:
     if d.contrarian:
         state = "극단적 " + state
     outcome = "상승" if d.points > 0 else "하락"
-    return f"• {value}{pos} {state} → 과거엔 이후 {outcome} {d.points:+.0f}점"
+    cap = "" if math.isnan(d.max_points) else f"/{d.max_points:.0f}"
+    return f"• {value}{pos} {state} → 과거엔 이후 {outcome} {d.points:+.0f}{cap}점"

@@ -41,3 +41,23 @@ def test_effective_sign_handles_contrarian_and_flip():
     assert effective_sign(cfg, "vix", "mid") == 1             # contrarian, direction -1 → 극단 고점은 상승
     cfg["indicators"]["trend_50"]["horizons"] = {"mid": {"direction": -1}}
     assert effective_sign(cfg, "trend_50", "mid") == -1
+
+
+def test_top_drivers_carry_max_points():
+    cfg = load_config(apply_tuning=False)
+    for name in cfg["indicators"]:  # 단기: VIX(심리)와 금리 2개(매크로)만 활성
+        if name not in ("vix", "us10y_chg_20", "us2y_chg_20"):
+            cfg["indicators"][name].setdefault("horizons", {})["short"] = {"exclude": True}
+    sig = _sig({"vix": 0.99, "us10y_chg_20": -0.11, "us2y_chg_20": -0.18}, cfg)
+    raw = pd.Series({k: 1.0 for k in cfg["indicators"]})
+    pct = pd.Series({k: 0.5 for k in cfg["indicators"]})
+    d = {x.name: x for x in top_drivers(sig["short"].iloc[-1], raw, pct, cfg, "short", n=3)}
+    assert d["vix"].max_points == pytest.approx(0.30 / 0.45 * 100)
+    assert d["us2y_chg_20"].max_points == pytest.approx(0.15 / 0.45 / 2 * 100)
+
+
+def test_describe_shows_points_over_max():
+    from nasdaq_signal.explain import describe
+    line = describe(Driver("vix", 35.9, 0.99, 66.2, 1, False, 66.7))
+    assert line.endswith("상승 +66/67점")
+    assert describe(Driver("us2y_chg_20", 0.11, 0.59, -3.0, -1, False, 16.7)).endswith("하락 -3/17점")
