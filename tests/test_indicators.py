@@ -110,3 +110,23 @@ def test_credit_indicator_from_hyg_ief():
     f["ief"] = 100.0
     raw = compute_raw(f)
     assert raw["credit"].iloc[-1] == pytest.approx(f["hyg"].iloc[-1] / f["hyg"].iloc[-61] - 1)
+
+
+def test_rate_expectation_and_inflation_indicators():
+    f = _frame()
+    f["dgs2"] = np.linspace(3.0, 4.0, len(f))
+    f["t10yie"] = np.linspace(2.0, 2.5, len(f))
+    raw = compute_raw(f)
+    assert raw["us2y_chg_20"].iloc[-1] == pytest.approx(f["dgs2"].iloc[-1] - f["dgs2"].iloc[-21])
+    assert raw["breakeven_chg_20"].iloc[-1] == pytest.approx(f["t10yie"].iloc[-1] - f["t10yie"].iloc[-21])
+    cfg = load_config(apply_tuning=False)
+    assert cfg["indicators"]["us2y_chg_20"]["category"] == "macro"
+    assert cfg["fred_series"]["DGS2"] == 1 and cfg["fred_series"]["T10YIE"] == 1
+
+
+def test_new_indicators_have_explanations():
+    from nasdaq_signal.explain import INDICATOR_TEXT
+    from nasdaq_signal.indicators import INDICATOR_SOURCES
+    cfg = load_config(apply_tuning=False)
+    assert set(cfg["indicators"]) <= set(INDICATOR_TEXT)
+    assert set(cfg["indicators"]) <= set(INDICATOR_SOURCES)

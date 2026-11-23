@@ -40,6 +40,8 @@ INDICATOR_TEXT: dict[str, tuple] = {
     "oil_ret_20": (lambda v: f"유가 20일 {_pct(v)}", "유가 급등", "유가 급락"),
     "gold_ret_20": (lambda v: f"금 20일 {_pct(v)}", "금 급등", "금 급락"),
     "us10y_chg_20": (lambda v: f"10년물 20일 {v * 100:+.0f}bp", "금리 급등", "금리 급락"),
+    "us2y_chg_20": (lambda v: f"2년물 20일 {v * 100:+.0f}bp", "금리 인상 기대 확대", "금리 인하 기대 확대"),
+    "breakeven_chg_20": (lambda v: f"기대인플레 20일 {v * 100:+.0f}bp", "물가 우려 확대", "물가 우려 완화"),
     "curve": (lambda v: f"장단기 금리차 {v:+.2f}%p", "금리차 확대", "금리차 축소"),
     "credit": (lambda v: f"하이일드/국채 60일 {_pct(v)}", "신용 위험선호", "신용 위험회피"),
     "dxy_ret_60": (lambda v: f"달러 60일 {_pct(v)}", "달러 강세", "달러 약세"),

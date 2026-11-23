@@ -31,6 +31,8 @@ def compute_raw(frame: pd.DataFrame) -> pd.DataFrame:
         "oil_ret_20": c("oil").pct_change(20, fill_method=None),
         "gold_ret_20": c("gold").pct_change(20, fill_method=None),
         "us10y_chg_20": c("dgs10").diff(20),
+        "us2y_chg_20": c("dgs2").diff(20),
+        "breakeven_chg_20": c("t10yie").diff(20),
         "curve": c("t10y2y"),
         "credit": (c("hyg") / c("ief")).pct_change(60, fill_method=None),
         "dxy_ret_60": c("dxy").pct_change(60, fill_method=None),
@@ -86,7 +88,7 @@ def to_signals(raw: pd.DataFrame, cfg: dict) -> dict[str, pd.DataFrame]:
 INDICATOR_SOURCES = {
     "trend_50": ["ndx"], "trend_200": ["ndx"], "ret_20": ["ndx"], "ret_60": ["ndx"], "drawdown_52w": ["ndx"],
     "breadth": ["rsp", "spy"], "vix": ["vix"], "vix_term": ["vix", "vix3m"], "gpr": ["gpr"],
-    "oil_ret_20": ["oil"], "gold_ret_20": ["gold"], "us10y_chg_20": ["dgs10"], "curve": ["t10y2y"],
+    "oil_ret_20": ["oil"], "gold_ret_20": ["gold"], "us10y_chg_20": ["dgs10"], "us2y_chg_20": ["dgs2"], "breakeven_chg_20": ["t10yie"], "curve": ["t10y2y"],
     "credit": ["hyg", "ief"], "dxy_ret_60": ["dxy"], "nfci": ["nfci"], "sahm": ["sahmrealtime"],
 }
 

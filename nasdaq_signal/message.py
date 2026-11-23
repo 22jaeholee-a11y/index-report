@@ -13,7 +13,7 @@ WEEKDAYS = "월화수목금토일"
 HORIZON_KO = {"short": "단기", "mid": "중기", "long": "장기"}
 CATEGORY_KO = {"market": "시장", "sentiment": "심리", "geo": "지정학", "macro": "매크로"}
 MISSING_KO = {
-    "fear_greed": "공포탐욕", "dgs10": "10년물", "t10y2y": "장단기차", "bamlh0a0hym2": "HY스프레드",
+    "fear_greed": "공포탐욕", "dgs10": "10년물", "dgs2": "2년물", "t10yie": "기대인플레", "t10y2y": "장단기차", "bamlh0a0hym2": "HY스프레드",
     "nfci": "금융여건", "sahmrealtime": "삼법칙", "gpr": "GPR", "ndx": "NDX", "spy": "SPY", "rsp": "RSP",
     "vix": "VIX", "vix3m": "VIX3M", "hyg": "HYG", "ief": "IEF", "oil": "유가", "gold": "금", "dxy": "달러",
 }
